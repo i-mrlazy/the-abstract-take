@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { TopNavbar } from '../components/layout/TopNavbar';
 import { Footer } from '../components/layout/Footer';
+import { ClientProviders } from '../components/providers/ClientProviders';
 
 import { getBaseUrl, SITE_CONFIG } from '@/lib/seo/site';
 
@@ -51,9 +52,11 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col bg-[#FAF9F6] text-gray-900 selection:bg-[#008CFF] selection:text-white">
-        <TopNavbar />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <ClientProviders>
+          <TopNavbar />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </ClientProviders>
       </body>
     </html>
   );

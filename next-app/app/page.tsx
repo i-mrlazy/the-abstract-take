@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { db } from '../lib/db';
 import { AbstractScoreBadge } from '../components/ui/AbstractScoreBadge';
 import { ReviewCard } from '../components/ui/ReviewCard';
+import { BookmarkButton } from '../components/bookmarks/BookmarkButton';
 import { normalizeScore } from '../lib/utils/rating';
 import {
   ArrowRight,
@@ -156,7 +157,7 @@ export default async function HomePage() {
                 </div>
               )}
 
-              <div className="pt-2 flex items-center justify-between border-t border-gray-100">
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100">
                 <Link
                   href={`/reviews/${latestTake.slug}`}
                   className="bg-[#111111] hover:bg-[#008CFF] text-white font-sans font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-sm hover:shadow-md flex items-center space-x-2 cursor-pointer"
@@ -164,6 +165,7 @@ export default async function HomePage() {
                   <span>Read My Full Review</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
+                <BookmarkButton reviewId={latestTake.id} variant="button" />
               </div>
             </div>
 

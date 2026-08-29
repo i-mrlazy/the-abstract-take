@@ -13,8 +13,10 @@ import {
   Mail,
   Settings,
   Search,
+  Bookmark,
 } from 'lucide-react';
 import { MobileNavMenu } from './MobileNavMenu';
+import { useBookmarks } from '@/lib/context/BookmarksContext';
 
 export interface NavLinkItem {
   path: string;
@@ -37,6 +39,7 @@ export const NAV_LINKS: NavLinkItem[] = [
 export function TopNavbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { bookmarkedCount, openDrawer } = useBookmarks();
 
   // Cmd+K / Ctrl+K keyboard shortcut to jump to /search
   useEffect(() => {
@@ -143,6 +146,21 @@ export function TopNavbar() {
                 ⌘K
               </kbd>
             </Link>
+
+            {/* Bookmarks Drawer Trigger */}
+            <button
+              onClick={openDrawer}
+              className="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              title="Saved takes"
+              aria-label={`Saved takes (${bookmarkedCount})`}
+            >
+              <Bookmark className={`w-4 h-4 ${bookmarkedCount > 0 ? 'fill-[#008CFF] text-[#008CFF]' : ''}`} />
+              {bookmarkedCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-[#008CFF] text-white text-[9px] font-mono font-bold rounded-full flex items-center justify-center border border-[#111111] shadow-2xs">
+                  {bookmarkedCount}
+                </span>
+              )}
+            </button>
 
             {/* Mobile Menu Button */}
             <MobileNavMenu navLinks={NAV_LINKS} />

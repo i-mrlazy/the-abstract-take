@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Settings } from 'lucide-react';
+import { Menu, X, Settings, Bookmark } from 'lucide-react';
 import type { NavLinkItem } from './TopNavbar';
+import { useBookmarks } from '@/lib/context/BookmarksContext';
 
 interface MobileNavMenuProps {
   navLinks: NavLinkItem[];
@@ -13,6 +14,7 @@ interface MobileNavMenuProps {
 export function MobileNavMenu({ navLinks }: MobileNavMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const { bookmarkedCount, openDrawer } = useBookmarks();
 
   // Close mobile drawer on route changes
   useEffect(() => {
@@ -46,7 +48,26 @@ export function MobileNavMenu({ navLinks }: MobileNavMenuProps) {
       </button>
 
       {isOpen && (
-        <div className="absolute top-16 left-0 right-0 z-50 bg-[#161616] border-b border-gray-800 px-4 pt-3 pb-6 space-y-2 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-16 left-0 right-0 z-50 bg-[#161616] border-b border-gray-800 px-4 pt-3 pb-6 space-y-3 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+          {/* Saved Takes Quick Action */}
+          <button
+            onClick={() => {
+              setIsOpen(false);
+              openDrawer();
+            }}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase transition-all bg-white/5 text-gray-200 hover:bg-white/10 hover:text-white cursor-pointer border border-white/10"
+          >
+            <div className="flex items-center space-x-2.5">
+              <Bookmark className="w-4 h-4 text-[#00C0FF] fill-[#00C0FF]" />
+              <span>Saved Takes (Watchlist)</span>
+            </div>
+            {bookmarkedCount > 0 && (
+              <span className="bg-[#008CFF] text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                {bookmarkedCount}
+              </span>
+            )}
+          </button>
+
           <div className="space-y-1">
             {navLinks.map((item) => {
               const active = isActive(item.path);

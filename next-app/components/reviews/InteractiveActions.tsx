@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Bookmark, Heart, Share2, Check } from 'lucide-react';
+import { useBookmarks } from '@/lib/context/BookmarksContext';
 
 interface InteractiveActionsProps {
   reviewId: string;
@@ -9,14 +10,12 @@ interface InteractiveActionsProps {
 }
 
 export function InteractiveActions({ reviewId, initialLikes = 0 }: InteractiveActionsProps) {
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const { isBookmarked, toggleBookmark } = useBookmarks();
+  const bookmarked = isBookmarked(reviewId);
+
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(initialLikes);
   const [copied, setCopied] = useState(false);
-
-  const handleToggleBookmark = () => {
-    setIsBookmarked(!isBookmarked);
-  };
 
   const handleToggleLike = () => {
     if (!isLiked) {
@@ -61,15 +60,16 @@ export function InteractiveActions({ reviewId, initialLikes = 0 }: InteractiveAc
       </button>
 
       <button
-        onClick={handleToggleBookmark}
+        onClick={() => toggleBookmark(reviewId)}
         className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
-          isBookmarked
+          bookmarked
             ? 'bg-blue-50 border-blue-200 text-[#008CFF]'
             : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
         }`}
-        aria-label="Bookmark this take"
+        aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark this take'}
+        title={bookmarked ? 'Saved to Watchlist' : 'Save to Watchlist'}
       >
-        <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-[#008CFF]' : ''}`} />
+        <Bookmark className={`w-4 h-4 ${bookmarked ? 'fill-[#008CFF]' : ''}`} />
       </button>
 
       <button
