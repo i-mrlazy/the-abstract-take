@@ -137,7 +137,7 @@ Bulk review writing and automated publishing are orchestrated through Google She
 
 - **Vercel Root Directory**: `next-app`
 - **Output Directory**: `.next`
-- **Scheduled Publishing**: Configured via `next-app/vercel.json` to execute hourly on `/api/cron/publish-scheduled` with `CRON_SECRET` authentication.
+- **Scheduled Publishing**: Configured via `next-app/vercel.json` to execute once daily (`0 0 * * *`) on `/api/cron/publish-scheduled` with `CRON_SECRET` authentication (Vercel Hobby plan compatible).
 
 ---
 
