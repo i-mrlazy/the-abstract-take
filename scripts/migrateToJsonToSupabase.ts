@@ -1,10 +1,10 @@
 import "dotenv/config";
 import fs from "fs";
 import path from "path";
-import { getSupabaseClient, isSupabaseConfigured } from "../server/db/supabase";
-import { mapReviewToDb } from "../server/db/repositories/reviewRepository";
-import { validateReviewInput } from "../server/utils/validation";
-import { Review, RecommendationList, WhatToWatchNextItem, Comment, NewsletterSubscriber, SiteSettings } from "../src/types";
+import { getServerSupabaseClient as getSupabaseClient, isServerSupabaseConfigured as isSupabaseConfigured } from "../next-app/lib/supabase/server";
+import { mapReviewToDb } from "../next-app/lib/db/repositories/reviewRepository";
+import { validateReviewInput } from "../next-app/lib/utils/validation";
+import { Review, RecommendationList, WhatToWatchNextItem, Comment, NewsletterSubscriber, SiteSettings } from "../next-app/types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
