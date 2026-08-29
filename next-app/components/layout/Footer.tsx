@@ -1,79 +1,164 @@
 import React from 'react';
 import Link from 'next/link';
 import { NewsletterSubscribeForm } from '../newsletter/NewsletterSubscribeForm';
+import { Heart, Sparkles, Settings } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="bg-white border-t border-gray-200/90 py-12 md:py-16 mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+    <footer className="bg-[#111111] text-white border-t border-gray-800 pt-14 pb-8 text-left mt-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Newsletter Section */}
-        <div className="bg-gray-50/80 border border-gray-200/80 rounded-3xl p-6 sm:p-8">
+        <div className="mb-14">
           <NewsletterSubscribeForm />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-12 border-b border-gray-100">
-          <div className="md:col-span-2 space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-[#008CFF] text-white rounded-lg flex items-center justify-center font-serif font-bold text-sm">
+        {/* Brand & Footer Nav Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 pb-12 border-b border-gray-800">
+          {/* Col 1: Brand */}
+          <div className="lg:col-span-2 space-y-4">
+            <Link href="/" className="inline-flex items-center space-x-2.5 group">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#008CFF] to-[#00C0FF] flex items-center justify-center text-black font-black text-sm group-hover:scale-105 transition-transform">
                 AT
               </div>
-              <span className="font-serif font-black text-lg text-gray-900">THE ABSTRACT TAKE</span>
-            </div>
-            <p className="font-news text-sm text-gray-600 max-w-md leading-relaxed">
-              An independent, opinionated entertainment publication. Uncompromising long-form critique, curated watchlists, and the signature Abstract Score across Cinema, Television, and Anime.
+              <span className="font-serif font-black text-xl text-white group-hover:text-[#00C0FF] transition-colors">
+                The Abstract Take
+              </span>
+            </Link>
+            <p className="text-gray-400 text-xs font-news leading-relaxed max-w-sm">
+              An independent editorial publication offering unfiltered movie, TV series, anime, and documentary critiques scored on the calibrated 1–10 Abstract Scale.
             </p>
+            <div className="pt-2">
+              <Link
+                href="/what-to-watch-next"
+                className="inline-flex items-center space-x-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-mono px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#00C0FF]" />
+                <span>What Should I Watch Next?</span>
+              </Link>
+            </div>
           </div>
 
-          <div>
-            <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-gray-900 mb-4">
-              Editorial Formats
+          {/* Col 2: Navigation */}
+          <div className="space-y-3">
+            <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
+              Navigation
             </h4>
-            <ul className="space-y-2.5 text-xs font-mono text-gray-600">
+            <ul className="space-y-2 text-xs font-sans text-gray-400">
               <li>
-                <Link href="/movies" className="hover:text-[#008CFF] transition-colors">
-                  Film Reviews
+                <Link href="/" className="hover:text-white transition-colors">
+                  My Take (Home)
                 </Link>
               </li>
               <li>
-                <Link href="/series" className="hover:text-[#008CFF] transition-colors">
-                  Series & Television
+                <Link href="/reviews" className="hover:text-white transition-colors">
+                  All Reviews
                 </Link>
               </li>
               <li>
-                <Link href="/anime" className="hover:text-[#008CFF] transition-colors">
-                  Anime Critiques
+                <Link href="/movies" className="hover:text-white transition-colors">
+                  Movie Reviews
                 </Link>
               </li>
               <li>
-                <Link href="/recommends" className="hover:text-[#008CFF] transition-colors">
+                <Link href="/series" className="hover:text-white transition-colors">
+                  Series Reviews
+                </Link>
+              </li>
+              <li>
+                <Link href="/anime" className="hover:text-white transition-colors">
+                  Anime Reviews
+                </Link>
+              </li>
+              <li>
+                <Link href="/documentaries" className="hover:text-white transition-colors">
+                  Documentaries
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Col 3: Curated Collections */}
+          <div className="space-y-3">
+            <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
+              Curated Collections
+            </h4>
+            <ul className="space-y-2 text-xs font-sans text-gray-400">
+              <li>
+                <Link href="/recommends" className="hover:text-white transition-colors">
                   The Abstract Recommends
                 </Link>
               </li>
+              <li>
+                <Link href="/what-to-watch-next" className="hover:text-white transition-colors">
+                  What to Watch Next
+                </Link>
+              </li>
+              <li>
+                <Link href="/reviews?minScore=9" className="hover:text-white transition-colors">
+                  Signature Masterpieces
+                </Link>
+              </li>
+              <li>
+                <Link href="/search" className="hover:text-white transition-colors">
+                  Search Archives
+                </Link>
+              </li>
             </ul>
           </div>
 
-          <div>
-            <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-gray-900 mb-4">
+          {/* Col 4: About & Contact */}
+          <div className="space-y-3">
+            <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
               Publication
             </h4>
-            <ul className="space-y-2.5 text-xs font-mono text-gray-600">
+            <ul className="space-y-2 text-xs font-sans text-gray-400">
               <li>
-                <Link href="/about" className="hover:text-[#008CFF] transition-colors">
-                  About & The Abstract Scale
+                <Link href="/about" className="hover:text-white transition-colors">
+                  About Editorial Ethos
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="hover:text-[#008CFF] transition-colors">
-                  Contact & Feedback
+                <Link href="/contact" className="hover:text-white transition-colors">
+                  Contact & Enquiries
+                </Link>
+              </li>
+              <li>
+                <Link href="/admin" className="hover:text-white transition-colors inline-flex items-center space-x-1">
+                  <Settings className="w-3 h-3 text-[#008CFF]" />
+                  <span>Editorial Studio</span>
                 </Link>
               </li>
             </ul>
+            <div className="pt-2">
+              <a
+                href="https://buymeacoffee.com"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center space-x-1.5 bg-amber-600 hover:bg-amber-700 text-white font-sans text-xs font-bold px-3 py-2 rounded-xl transition-colors shadow-xs"
+              >
+                <Heart className="w-3.5 h-3.5 fill-white" />
+                <span>Buy Me a Coffee</span>
+              </a>
+            </div>
           </div>
         </div>
 
-        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between text-xs font-mono text-gray-500">
-          <p>© {new Date().getFullYear()} The Abstract Take. Independent Personal Publication.</p>
-          <p className="mt-2 sm:mt-0">Creator rating is authoritative.</p>
+        {/* Bottom Bar */}
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 font-sans space-y-4 sm:space-y-0">
+          <div>
+            © {new Date().getFullYear()} The Abstract Take. All editorial opinions are personal.
+          </div>
+          <div className="flex items-center space-x-4">
+            <Link href="/about" className="hover:text-gray-200 transition-colors">
+              About
+            </Link>
+            <Link href="/contact" className="hover:text-gray-200 transition-colors">
+              Contact
+            </Link>
+            <Link href="/admin" className="hover:text-gray-200 transition-colors">
+              Admin
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
