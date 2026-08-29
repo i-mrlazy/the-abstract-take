@@ -333,7 +333,8 @@ function publishApprovedReviews() {
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return;
 
-    var dataRange = sheet.getRange(2, 1, lastRow - 1, 21);
+    var maxCols = Math.max(21, sheet.getLastColumn());
+    var dataRange = sheet.getRange(2, 1, lastRow - 1, maxCols);
     var rows = dataRange.getValues();
     var publishedCount = 0;
 
@@ -366,6 +367,15 @@ function publishApprovedReviews() {
       var seoDescription = String(row[CONFIG.COL.GENERATED_SEO_DESC - 1] || "").trim();
       var tags = String(row[CONFIG.COL.GENERATED_TAGS - 1] || "").trim();
 
+      // Optional extended columns (Columns 22 to 28)
+      var director = row.length >= 22 ? String(row[21] || "").trim() : "";
+      var cast = row.length >= 23 ? String(row[22] || "").trim() : "";
+      var genres = row.length >= 24 ? String(row[23] || "").trim() : "";
+      var runtime = row.length >= 25 ? String(row[24] || "").trim() : "";
+      var posterUrl = row.length >= 26 ? String(row[25] || "").trim() : "";
+      var bannerUrl = row.length >= 27 ? String(row[26] || "").trim() : "";
+      var synopsis = row.length >= 28 ? String(row[27] || "").trim() : "";
+
       sheet.getRange(rowNum, CONFIG.COL.AUTOMATION_NOTES).setValue("Publishing to The Abstract Take...");
       SpreadsheetApp.flush();
 
@@ -389,6 +399,13 @@ function publishApprovedReviews() {
           verdict: verdict,
           seoDescription: seoDescription,
           tags: tags,
+          director: director || undefined,
+          cast: cast || undefined,
+          genres: genres || undefined,
+          runtime: runtime || undefined,
+          posterUrl: posterUrl || undefined,
+          bannerUrl: bannerUrl || undefined,
+          synopsis: synopsis || undefined,
         });
 
         if (pubResult && pubResult.success) {

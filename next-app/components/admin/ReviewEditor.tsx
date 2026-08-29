@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -47,6 +47,9 @@ import {
   Layers,
   Film,
   Loader2,
+  Tv,
+  Image as ImageIcon,
+  Info,
 } from 'lucide-react';
 
 interface ReviewEditorProps {
@@ -69,7 +72,11 @@ export function ReviewEditor({
 }: ReviewEditorProps) {
   const router = useRouter();
 
-  // Form State
+  // File input refs for image management
+  const posterFileInputRef = useRef<HTMLInputElement>(null);
+  const bannerFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Form State: Core Media Metadata
   const [title, setTitle] = useState(initialReview?.title || '');
   const [originalTitle, setOriginalTitle] = useState(initialReview?.originalTitle || '');
   const [type, setType] = useState<MediaType>(initialReview?.type || 'Movie');
@@ -85,6 +92,8 @@ export function ReviewEditor({
     initialReview?.genres?.join(', ') || 'Drama, Cinema'
   );
   const [synopsis, setSynopsis] = useState(initialReview?.synopsis || '');
+  const [language, setLanguage] = useState(initialReview?.language || '');
+  const [country, setCountry] = useState(initialReview?.country || '');
   const [posterUrl, setPosterUrl] = useState(
     initialReview?.posterUrl ||
       'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop'
@@ -169,6 +178,8 @@ export function ReviewEditor({
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchingMedia, setIsSearchingMedia] = useState(false);
   const [searchResults, setSearchResults] = useState<MediaSearchResult[]>([]);
+  const [searchProvider, setSearchProvider] = useState<string | null>(null);
+  const [searchStatus, setSearchStatus] = useState<any>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isEditorialAssistantOpen, setIsEditorialAssistantOpen] = useState(false);
@@ -188,7 +199,7 @@ export function ReviewEditor({
     if (draft.abstractScore) setAbstractScore(normalizeScore(draft.abstractScore));
   };
 
-  // Media Search Handler
+  // Media Search Handler (Queries backend provider hierarchy)
   const handleMediaSearch = async () => {
     if (!searchQuery.trim()) return;
     setIsSearchingMedia(true);
@@ -199,6 +210,8 @@ export function ReviewEditor({
       if (res.ok) {
         const data = await res.json();
         setSearchResults(data.results || []);
+        if (data.provider) setSearchProvider(data.provider);
+        if (data.status) setSearchStatus(data.status);
       }
     } catch (err: any) {
       console.error('Media search error:', err);
@@ -207,35 +220,70 @@ export function ReviewEditor({
     }
   };
 
-  // 1-Click Import Metadata
-  const handleImportMetadata = (item: MediaSearchResult) => {
-    setTitle(item.title);
-    if (item.originalTitle) setOriginalTitle(item.originalTitle);
-    setType(item.type);
-    setReleaseYear(item.releaseYear || new Date().getFullYear());
-    if (item.director) setDirector(item.director);
-    if (item.cast?.length) setCastInput(item.cast.join(', '));
-    if (item.runtime) setRuntime(item.runtime);
-    if (item.genres?.length) setGenresInput(item.genres.join(', '));
-    if (item.synopsis) setSynopsis(item.synopsis);
-    if (item.posterUrl) setPosterUrl(item.posterUrl);
-    if (item.bannerUrl) setBannerUrl(item.bannerUrl);
-    if (item.trailerUrl) setTrailerUrl(item.trailerUrl);
+  // Import Metadata from Search / AI (Safe: option to fill missing fields or overwrite)
+  const handleImportMetadata = (item: MediaSearchResult, fillMissingOnly = false) => {
+    if (!fillMissingOnly || !title) setTitle(item.title);
+    if (!fillMissingOnly || !originalTitle) {
+      if (item.originalTitle) setOriginalTitle(item.originalTitle);
+    }
+    if (!fillMissingOnly || !type) setType(item.type);
+    if (!fillMissingOnly || !releaseYear)
+      setReleaseYear(item.releaseYear || new Date().getFullYear());
+    if (!fillMissingOnly || !director) {
+      if (item.director) setDirector(item.director);
+    }
+    if (!fillMissingOnly || !castInput) {
+      if (item.cast?.length) setCastInput(item.cast.join(', '));
+    }
+    if (!fillMissingOnly || !runtime) {
+      if (item.runtime) setRuntime(item.runtime);
+    }
+    if (!fillMissingOnly || !genresInput) {
+      if (item.genres?.length) setGenresInput(item.genres.join(', '));
+    }
+    if (!fillMissingOnly || !synopsis) {
+      if (item.synopsis) setSynopsis(item.synopsis);
+    }
+    if (!fillMissingOnly || !posterUrl) {
+      if (item.posterUrl) setPosterUrl(item.posterUrl);
+    }
+    if (!fillMissingOnly || !bannerUrl) {
+      if (item.bannerUrl) setBannerUrl(item.bannerUrl);
+    }
+    if (!fillMissingOnly || !trailerUrl) {
+      if (item.trailerUrl) setTrailerUrl(item.trailerUrl);
+    }
+    if (!fillMissingOnly || !language) {
+      if (item.language) setLanguage(item.language);
+    }
+    if (!fillMissingOnly || !country) {
+      if (item.country) setCountry(item.country);
+    }
 
     // Auto-generate slug & SEO if not set
-    const generatedSlug =
-      item.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '') + `-${item.releaseYear}`;
-    setSlug(generatedSlug);
-    setMetaTitle(`${item.title} (${item.releaseYear}) Review — The Abstract Take`);
-    setMetaDescription(
-      `Personal review and Abstract Score breakdown of ${item.title} directed by ${item.director}.`
-    );
-    setKeywordsInput(
-      `${item.title} Review, ${item.director}, The Abstract Take, ${item.type} Review`
-    );
+    if (!slug) {
+      const generatedSlug =
+        item.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '') + `-${item.releaseYear || new Date().getFullYear()}`;
+      setSlug(generatedSlug);
+    }
+    if (!metaTitle) {
+      setMetaTitle(
+        `${item.title} (${item.releaseYear || new Date().getFullYear()}) Review — The Abstract Take`
+      );
+    }
+    if (!metaDescription) {
+      setMetaDescription(
+        item.synopsis || `Personal review and Abstract Score breakdown of ${item.title}.`
+      );
+    }
+    if (!keywordsInput) {
+      setKeywordsInput(
+        `${item.title} Review, ${item.director || 'Cinema'}, The Abstract Take, ${item.type} Review`
+      );
+    }
 
     setSearchResults([]);
   };
@@ -280,7 +328,7 @@ export function ReviewEditor({
     setLongFormReview(updated);
   };
 
-  // File Upload
+  // File Upload to Cloudinary
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     target: 'poster' | 'banner'
@@ -367,7 +415,7 @@ export function ReviewEditor({
     setStreamingPlatforms(streamingPlatforms.filter((_, i) => i !== index));
   };
 
-  // Assemble Review Object
+  // Assemble Review Object for Save / Preview
   const assembleReview = (): Review => {
     const castArray = castInput
       .split(',')
@@ -405,6 +453,8 @@ export function ReviewEditor({
       runtime: runtime.trim() || '2h 00m',
       genres: genresArray.length ? genresArray : ['Cinema'],
       synopsis: synopsis.trim(),
+      language: language.trim() || undefined,
+      country: country.trim() || undefined,
       posterUrl: posterUrl.trim(),
       bannerUrl: bannerUrl.trim(),
       trailerUrl: trailerUrl.trim() || undefined,
@@ -587,15 +637,26 @@ export function ReviewEditor({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Columns: Core Content & Critique */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Section 1: Media Search & Quick Import */}
+          {/* Section 1: Media Search & Quick Import (Optional Assistant) */}
           <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h3 className="font-serif font-black text-sm text-gray-900 flex items-center space-x-2">
                 <Search className="w-4 h-4 text-[#008CFF]" />
-                <span>Search & Auto-Fill Cinema Metadata</span>
+                <span>Search & Suggest Metadata (Optional)</span>
               </h3>
-              <span className="text-[10px] font-mono text-gray-400">TMDb / Gemini AI</span>
+              <span className="text-[10px] font-mono text-gray-400">
+                {searchProvider === 'gemini'
+                  ? 'Gemini AI Assistant'
+                  : searchProvider === 'tmdb'
+                  ? 'TMDB Provider'
+                  : 'Manual / AI Suggestion'}
+              </span>
             </div>
+
+            <p className="text-xs text-gray-500">
+              Primary workflow is direct manual entry below. Optionally search titles to auto-suggest
+              posters, cast, runtime, and synopses with Gemini AI.
+            </p>
 
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -605,7 +666,7 @@ export function ReviewEditor({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleMediaSearch()}
-                  placeholder="Search film title (e.g. Dune: Part Two, Oppenheimer)..."
+                  placeholder="Search film title (e.g. Dune: Part Two, Oppenheimer, Severance)..."
                   className="w-full pl-9 pr-4 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
                 />
               </div>
@@ -622,49 +683,78 @@ export function ReviewEditor({
             {/* Search Results Dropdown */}
             {searchResults.length > 0 && (
               <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden bg-gray-50/50">
+                <div className="p-2.5 bg-blue-50/60 border-b border-blue-100 flex items-center justify-between text-[11px] text-blue-900">
+                  <span className="font-mono">
+                    Found {searchResults.length} suggestion(s) via{' '}
+                    <strong>{searchProvider === 'gemini' ? 'Gemini AI' : searchProvider || 'Engine'}</strong>
+                  </span>
+                  <span className="text-gray-500 text-[10px]">Review before applying</span>
+                </div>
+
                 {searchResults.map((item) => (
                   <div
                     key={item.id}
-                    className="p-3 flex items-center justify-between gap-3 hover:bg-white transition-colors"
+                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white transition-colors"
                   >
                     <div className="flex items-center space-x-3 min-w-0">
                       <img
                         src={item.posterUrl}
                         alt={item.title}
-                        className="w-8 h-12 object-cover rounded shadow-2xs shrink-0"
+                        className="w-10 h-14 object-cover rounded shadow-2xs shrink-0"
                       />
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-gray-900 truncate">
                           {item.title} ({item.releaseYear})
                         </p>
                         <p className="text-[11px] text-gray-500 truncate">
-                          {item.director} · {item.type}
+                          {item.director || 'Director'} · {item.type}
+                          {item.runtime ? ` · ${item.runtime}` : ''}
                         </p>
+                        {item.synopsis && (
+                          <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">
+                            {item.synopsis}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleImportMetadata(item)}
-                      className="px-3 py-1 bg-blue-50 hover:bg-[#008CFF] text-[#008CFF] hover:text-white border border-blue-200 hover:border-transparent text-xs font-mono font-bold rounded-lg transition-all cursor-pointer shrink-0"
-                    >
-                      Import Metadata
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleImportMetadata(item, true)}
+                        className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-mono font-bold rounded-lg transition-colors cursor-pointer"
+                        title="Only fills inputs that are currently empty"
+                      >
+                        Fill Missing Only
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleImportMetadata(item, false)}
+                        className="px-3 py-1 bg-blue-50 hover:bg-[#008CFF] text-[#008CFF] hover:text-white border border-blue-200 hover:border-transparent text-[11px] font-mono font-bold rounded-lg transition-all cursor-pointer"
+                      >
+                        Import All
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Section 2: Core Metadata & Abstract Score */}
+          {/* Section 2: Core Media Metadata & Abstract Score (First-Party Authority) */}
           <div className="bg-white border border-gray-200/90 rounded-2xl p-6 shadow-sm space-y-5">
-            <h3 className="font-serif font-black text-sm text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <Film className="w-4 h-4 text-[#008CFF]" />
-              <span>Project Details & Authoritative Score</span>
-            </h3>
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-serif font-black text-sm text-gray-900 flex items-center space-x-2">
+                <Film className="w-4 h-4 text-[#008CFF]" />
+                <span>Project Details & Authoritative Score</span>
+              </h3>
+              <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                First-Party Editorial Authority
+              </span>
+            </div>
 
-            {/* Title & Release Year */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Title & Original Title & Release Year */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
                   Title *
@@ -676,6 +766,19 @@ export function ReviewEditor({
                   placeholder="e.g. Past Lives"
                   required
                   className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 font-bold focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Original Title (Foreign)
+                </label>
+                <input
+                  type="text"
+                  value={originalTitle}
+                  onChange={(e) => setOriginalTitle(e.target.value)}
+                  placeholder="e.g. Doraibu mai kā"
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
                 />
               </div>
 
@@ -734,10 +837,95 @@ export function ReviewEditor({
                   type="text"
                   value={runtime}
                   onChange={(e) => setRuntime(e.target.value)}
-                  placeholder="e.g. 1h 46m"
+                  placeholder="e.g. 1h 46m or 8 eps (~50m each)"
                   className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
                 />
               </div>
+            </div>
+
+            {/* Cast & Genres */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Lead Cast (Comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={castInput}
+                  onChange={(e) => setCastInput(e.target.value)}
+                  placeholder="e.g. Greta Lee, Teo Yoo, John Magaro"
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Genres (Comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={genresInput}
+                  onChange={(e) => setGenresInput(e.target.value)}
+                  placeholder="e.g. Drama, Romance, Cinema"
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Country & Language & Trailer */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Country of Origin
+                </label>
+                <input
+                  type="text"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="e.g. United States, South Korea"
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Spoken Language
+                </label>
+                <input
+                  type="text"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  placeholder="e.g. English, Korean"
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Trailer Link / Video URL
+                </label>
+                <input
+                  type="text"
+                  value={trailerUrl}
+                  onChange={(e) => setTrailerUrl(e.target.value)}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Short Synopsis */}
+            <div>
+              <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                Editorial Synopsis (Short Overview)
+              </label>
+              <textarea
+                rows={2}
+                value={synopsis}
+                onChange={(e) => setSynopsis(e.target.value)}
+                placeholder="A neutral 2-3 sentence overview of the premise..."
+                className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+              />
             </div>
 
             {/* Authoritative 1–10 Abstract Score Selector */}
@@ -980,7 +1168,7 @@ export function ReviewEditor({
             </div>
           </div>
 
-          {/* Section 6: Final Verdict & Verdict Text */}
+          {/* Section 6: Final Verdict & Editorial Highlights */}
           <div className="bg-white border border-gray-200/90 rounded-2xl p-6 shadow-sm space-y-4">
             <h3 className="font-serif font-black text-sm text-gray-900 border-b border-gray-100 pb-3">
               Editorial Conclusion & Verdict
@@ -1015,6 +1203,90 @@ export function ReviewEditor({
                   <option value="Skip">Skip</option>
                 </select>
               </div>
+            </div>
+
+            {/* Favorite Scene & Favorite Quote */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Favorite Scene / Sequence
+                </label>
+                <input
+                  type="text"
+                  value={favoriteScene}
+                  onChange={(e) => setFavoriteScene(e.target.value)}
+                  placeholder="e.g. The subway farewell scene..."
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                  Favorite Dialogue / Quote
+                </label>
+                <input
+                  type="text"
+                  value={favoriteQuote}
+                  onChange={(e) => setFavoriteQuote(e.target.value)}
+                  placeholder="e.g. 'If you had never left Seoul...'"
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 7: Streaming Platforms */}
+          <div className="bg-white border border-gray-200/90 rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-serif font-black text-sm text-gray-900 flex items-center space-x-2">
+                <Tv className="w-4 h-4 text-[#008CFF]" />
+                <span>Where to Stream</span>
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddPlatform}
+                className="text-xs font-mono text-[#008CFF] hover:underline flex items-center space-x-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Platform</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {streamingPlatforms.map((p, index) => (
+                <div key={index} className="flex flex-col sm:flex-row items-center gap-2">
+                  <input
+                    type="text"
+                    value={p.name}
+                    onChange={(e) => handleUpdatePlatform(index, 'name', e.target.value)}
+                    placeholder="Platform (e.g. Max, Apple TV, Netflix)"
+                    className="flex-1 px-3 py-1.5 bg-gray-50/70 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none"
+                  />
+                  <select
+                    value={p.type}
+                    onChange={(e) => handleUpdatePlatform(index, 'type', e.target.value)}
+                    className="px-3 py-1.5 bg-gray-50/70 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none"
+                  >
+                    <option value="Subscription">Subscription</option>
+                    <option value="Rent/Buy">Rent / Buy</option>
+                    <option value="Free">Free</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={p.url || ''}
+                    onChange={(e) => handleUpdatePlatform(index, 'url', e.target.value)}
+                    placeholder="Direct URL (optional)"
+                    className="flex-1 px-3 py-1.5 bg-gray-50/70 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePlatform(index)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1092,38 +1364,66 @@ export function ReviewEditor({
             </div>
           </div>
 
-          {/* Section: Artwork & Posters */}
+          {/* Section: Artwork & Visual Assets (Independent Cloudinary & First-Party Upload) */}
           <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-sm space-y-4">
             <h3 className="font-serif font-black text-sm text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <Upload className="w-4 h-4 text-[#008CFF]" />
+              <ImageIcon className="w-4 h-4 text-[#008CFF]" />
               <span>Artwork & Visual Assets</span>
             </h3>
 
-            {/* Poster URL */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
+            {/* Hidden file inputs */}
+            <input
+              ref={posterFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileUpload(e, 'poster')}
+              className="hidden"
+            />
+            <input
+              ref={bannerFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileUpload(e, 'banner')}
+              className="hidden"
+            />
+
+            {/* Poster Image */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <label className="block text-xs font-mono uppercase text-gray-700 font-bold">
                   Poster Image (Portrait)
                 </label>
-                <label className="text-xs font-mono text-[#008CFF] hover:underline cursor-pointer">
-                  Upload File
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, 'poster')}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => posterFileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="text-xs font-mono text-[#008CFF] hover:underline cursor-pointer flex items-center space-x-1"
+                  >
+                    <Upload className="w-3 h-3" />
+                    <span>{posterUrl ? 'Replace' : 'Upload'}</span>
+                  </button>
+                  {posterUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPosterUrl('')}
+                      className="text-xs font-mono text-red-500 hover:underline cursor-pointer flex items-center space-x-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <input
                 type="text"
                 value={posterUrl}
                 onChange={(e) => setPosterUrl(e.target.value)}
-                placeholder="https://..."
+                placeholder="Direct image URL or upload above..."
                 className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
               />
               {posterUrl && (
-                <div className="mt-2 w-20 h-28 border border-gray-200 rounded-lg overflow-hidden shadow-2xs">
+                <div className="relative mt-2 w-24 h-36 border border-gray-200 rounded-lg overflow-hidden shadow-2xs group">
                   <img
                     src={posterUrl}
                     alt="Poster Preview"
@@ -1133,29 +1433,50 @@ export function ReviewEditor({
               )}
             </div>
 
-            {/* Banner URL */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
+            {/* Banner Backdrop */}
+            <div className="space-y-2 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between">
                 <label className="block text-xs font-mono uppercase text-gray-700 font-bold">
                   Banner Backdrop (Widescreen)
                 </label>
-                <label className="text-xs font-mono text-[#008CFF] hover:underline cursor-pointer">
-                  Upload File
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, 'banner')}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => bannerFileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="text-xs font-mono text-[#008CFF] hover:underline cursor-pointer flex items-center space-x-1"
+                  >
+                    <Upload className="w-3 h-3" />
+                    <span>{bannerUrl ? 'Replace' : 'Upload'}</span>
+                  </button>
+                  {bannerUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setBannerUrl('')}
+                      className="text-xs font-mono text-red-500 hover:underline cursor-pointer flex items-center space-x-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <input
                 type="text"
                 value={bannerUrl}
                 onChange={(e) => setBannerUrl(e.target.value)}
-                placeholder="https://..."
+                placeholder="Direct backdrop URL or upload above..."
                 className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:border-[#008CFF] focus:outline-none"
               />
+              {bannerUrl && (
+                <div className="relative mt-2 w-full h-24 border border-gray-200 rounded-lg overflow-hidden shadow-2xs group">
+                  <img
+                    src={bannerUrl}
+                    alt="Banner Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

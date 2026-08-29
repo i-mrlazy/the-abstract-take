@@ -24,7 +24,7 @@
 - **Database & Persistence**: Supabase PostgreSQL (`@supabase/supabase-js`)
 - **Media Storage & CDN**: Cloudinary Media API
 - **AI Intelligence**: Google GenAI SDK (`@google/genai` Gemini 2.5 Flash)
-- **External Metadata**: TMDb (The Movie Database) v3 API
+- **Media Metadata Architecture**: First-Party Supabase Database + Optional Gemini AI Suggestions + Decoupled Provider Hierarchy (TMDB optional / commercial-safe)
 - **Authentication**: Stateless PBKDF2 (SHA-512) Password Hashing + Cryptographic HMAC-SHA256 Signed JWT in Secure HTTP-Only Cookies
 - **Editorial Automation**: Google Apps Script & Server-to-Server Webhook API
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchMediaMetadata } from '@/lib/media/search';
+import { searchMediaDetailed, getProviderStatus } from '@/lib/media/search';
 import { getAuthenticatedAdmin } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -12,12 +12,14 @@ export async function GET(req: NextRequest) {
     const query = req.nextUrl.searchParams.get('q') || '';
     const type = req.nextUrl.searchParams.get('type') || undefined;
 
+    const status = getProviderStatus();
+
     if (!query.trim()) {
-      return NextResponse.json({ success: true, results: [] });
+      return NextResponse.json({ success: true, results: [], provider: status.activeProvider, status });
     }
 
-    const results = await searchMediaMetadata(query, type);
-    return NextResponse.json({ success: true, results });
+    const { results, provider } = await searchMediaDetailed(query, type);
+    return NextResponse.json({ success: true, results, provider, status });
   } catch (err: any) {
     console.error('Media search error:', err);
     return NextResponse.json({ error: 'MediaSearchFailed', message: err.message }, { status: 500 });

@@ -77,6 +77,14 @@ export async function POST(req: NextRequest) {
         const normScore = Math.max(1, Math.min(10, Math.round(Number(row.rating) || 8)));
         const cleanType: MediaType = (row.contentType as MediaType) || 'Movie';
 
+        const explicitDirector = String(row.director || row.creator || '').trim();
+        const explicitCast = parseList(row.cast);
+        const explicitRuntime = String(row.runtime || '').trim();
+        const explicitGenres = parseList(row.genres);
+        const explicitSynopsis = String(row.synopsis || row.additionalNotes || '').trim();
+        const explicitPoster = String(row.posterUrl || row.poster || '').trim();
+        const explicitBanner = String(row.bannerUrl || row.banner || row.backdropUrl || row.backdrop || '').trim();
+
         const reviewId = existing ? existing.id : `review-${Date.now()}-${slugify(cleanTitle)}`;
         const finalSlug = existing ? existing.slug : baseSlug;
 
@@ -84,18 +92,21 @@ export async function POST(req: NextRequest) {
           id: reviewId,
           slug: finalSlug,
           title: cleanTitle,
+          originalTitle: row.originalTitle ? String(row.originalTitle).trim() : existing?.originalTitle,
           type: cleanType,
           status: 'published',
           releaseYear: cleanYear,
-          director: existing?.director || 'Editorial Curator',
-          cast: existing?.cast || [],
-          runtime: existing?.runtime || '2h 00m',
-          genres: existing?.genres || [cleanType, 'Cinema'],
+          director: existing?.director || explicitDirector || 'Editorial Curator',
+          cast: existing?.cast || (explicitCast.length ? explicitCast : []),
+          runtime: existing?.runtime || explicitRuntime || (cleanType === 'Movie' ? '2h 00m' : '45m / ep'),
+          genres: existing?.genres || (explicitGenres.length ? explicitGenres : [cleanType, 'Cinema']),
           posterUrl:
             existing?.posterUrl ||
+            explicitPoster ||
             'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop',
           bannerUrl:
             existing?.bannerUrl ||
+            explicitBanner ||
             'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
           abstractScore: normScore,
           myTake:
@@ -122,6 +133,7 @@ export async function POST(req: NextRequest) {
           likesCount: existing?.likesCount || 0,
           commentsCount: existing?.commentsCount || 0,
           readingTimeMinutes: 3,
+          synopsis: explicitSynopsis || existing?.synopsis || undefined,
           seo: {
             metaTitle: `${cleanTitle} (${cleanYear}) Review — The Abstract Take`,
             metaDescription: `Editorial review for ${cleanTitle}. Score: ${normScore}/10.`,

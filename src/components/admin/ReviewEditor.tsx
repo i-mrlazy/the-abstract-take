@@ -450,7 +450,7 @@ export function ReviewEditor({
               Step 1: Search & Auto-Import Media Metadata
             </h3>
           </div>
-          <span className="text-[11px] font-mono text-gray-500">TMDB & Cinema Engine</span>
+          <span className="text-[11px] font-mono text-gray-500">Cinema Engine & AI Assistant</span>
         </div>
 
         <p className="text-xs text-gray-600 mb-4">

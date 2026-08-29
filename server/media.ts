@@ -3,7 +3,7 @@ import { MediaSearchResult, MediaType } from "../src/types";
 
 let aiClient: GoogleGenAI | null = null;
 function getGemini(): GoogleGenAI | null {
-  if (!aiClient && process.env.GEMINI_API_KEY) {
+  if (!aiClient && process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY') {
     aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   }
   return aiClient;
@@ -13,11 +13,12 @@ export async function searchMediaMetadata(query: string, type?: string): Promise
   const cleanQuery = query.trim();
   if (!cleanQuery) return [];
 
-  // Try TMDB API if key provided
+  // 1. Try TMDB API only if explicitly configured & enabled
   const tmdbKey = process.env.TMDB_API_KEY;
-  if (tmdbKey) {
+  const tmdbEnabled = process.env.ENABLE_TMDB_PROVIDER !== "false";
+  if (tmdbKey && tmdbKey !== "MY_TMDB_API_KEY" && tmdbKey.trim().length > 0 && tmdbEnabled) {
     try {
-      const tmdbUrl = `https://api.themoviedb.org/3/search/multi?api_key=${tmdbKey}&query=${encodeURIComponent(cleanQuery)}`;
+      const tmdbUrl = `https://api.themoviedb.org/3/search/multi?api_key=${encodeURIComponent(tmdbKey)}&query=${encodeURIComponent(cleanQuery)}`;
       const resp = await fetch(tmdbUrl);
       if (resp.ok) {
         const data = await resp.json();
@@ -28,9 +29,13 @@ export async function searchMediaMetadata(query: string, type?: string): Promise
             const title = item.title || item.name || cleanQuery;
             const originalTitle = item.original_title || item.original_name;
             const releaseDate = item.release_date || item.first_air_date || "2024";
-            const year = parseInt(releaseDate.split("-")[0]) || 2024;
-            const poster = item.poster_path ? `https://image.tmdb.org/t/p/w780${item.poster_path}` : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop";
-            const backdrop = item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop";
+            const year = parseInt(releaseDate.split("-")[0]) || new Date().getFullYear();
+            const poster = item.poster_path
+              ? `https://image.tmdb.org/t/p/w780${item.poster_path}`
+              : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop";
+            const backdrop = item.backdrop_path
+              ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}`
+              : "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop";
 
             results.push({
               id: `tmdb-${item.id}`,
@@ -57,7 +62,7 @@ export async function searchMediaMetadata(query: string, type?: string): Promise
     }
   }
 
-  // Gemini Metadata Retrieval Engine
+  // 2. Gemini Metadata Retrieval Engine
   const ai = getGemini();
   if (ai) {
     try {
@@ -81,7 +86,7 @@ For each item, provide:
 - language: original spoken language (e.g. "English", "Japanese")
 - country: country of origin (e.g. "United States", "Japan")
 - trailerUrl: YouTube trailer search or URL if known
-- externalId: TMDB or IMDb ID if known
+- externalId: IMDb or Wikidata ID if known
 
 Respond ONLY with valid JSON array:
 [
@@ -98,12 +103,15 @@ Respond ONLY with valid JSON array:
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Normalize image URLs if missing
           return parsed.map((item, idx) => ({
             ...item,
             id: item.id || `meta-${Date.now()}-${idx}`,
-            posterUrl: item.posterUrl || "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop",
-            bannerUrl: item.bannerUrl || "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop",
+            posterUrl:
+              item.posterUrl ||
+              "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop",
+            bannerUrl:
+              item.bannerUrl ||
+              "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop",
             cast: Array.isArray(item.cast) ? item.cast : [],
             genres: Array.isArray(item.genres) ? item.genres : ["Cinema"],
           }));
@@ -114,7 +122,7 @@ Respond ONLY with valid JSON array:
     }
   }
 
-  // Fallback basic search result if offline
+  // 3. Fallback basic search result if offline
   return [
     {
       id: `meta-manual-${Date.now()}`,

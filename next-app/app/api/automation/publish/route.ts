@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
     const {
       rowId,
       title,
+      originalTitle,
       releaseYear,
       year,
       contentType,
@@ -74,6 +75,20 @@ export async function POST(req: NextRequest) {
       verdict,
       seoDescription,
       tags,
+      // Optional explicit metadata fields (from sheet extended columns or API payload)
+      director: inputDirector,
+      creator: inputCreator,
+      cast: inputCast,
+      runtime: inputRuntime,
+      genres: inputGenres,
+      synopsis: inputSynopsis,
+      posterUrl: inputPosterUrl,
+      poster: inputPoster,
+      bannerUrl: inputBannerUrl,
+      banner: inputBanner,
+      backdropUrl: inputBackdropUrl,
+      backdrop: inputBackdrop,
+      trailerUrl: inputTrailerUrl,
     } = body;
 
     if (!title) {
@@ -94,38 +109,45 @@ export async function POST(req: NextRequest) {
       year: cleanYear,
     });
 
-    // Metadata enrichment
-    let director = 'Editorial Curator';
-    let cast: string[] = [];
-    let runtime = cleanType === 'Movie' ? '2h 00m' : '45m / ep';
-    let genres = [cleanType, 'Cinema'];
-    let synopsis = additionalNotes || `Editorial feature critique of ${cleanTitle}.`;
-    let posterUrl = 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop';
-    let bannerUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop';
+    // Determine Metadata Priority:
+    // 1. Existing database record (preserve creator edits)
+    // 2. Explicitly supplied fields in payload / Google Sheet
+    // 3. Provider lookup (non-blocking fallback)
+    // 4. Clean first-party defaults
+    const explicitDirector = String(inputDirector || inputCreator || '').trim();
+    const explicitCast = parseList(inputCast);
+    const explicitRuntime = String(inputRuntime || '').trim();
+    const explicitGenres = parseList(inputGenres);
+    const explicitSynopsis = String(inputSynopsis || additionalNotes || '').trim();
+    const explicitPoster = String(inputPosterUrl || inputPoster || '').trim();
+    const explicitBanner = String(inputBannerUrl || inputBanner || inputBackdropUrl || inputBackdrop || '').trim();
+    const explicitTrailer = String(inputTrailerUrl || '').trim();
 
-    if (existing) {
-      director = existing.director || director;
-      cast = existing.cast || cast;
-      runtime = existing.runtime || runtime;
-      genres = existing.genres || genres;
-      synopsis = existing.synopsis || synopsis;
-      posterUrl = existing.posterUrl || posterUrl;
-      bannerUrl = existing.bannerUrl || bannerUrl;
-    } else {
+    let director = existing?.director || explicitDirector || 'Editorial Curator';
+    let cast: string[] = existing?.cast || (explicitCast.length ? explicitCast : []);
+    let runtime = existing?.runtime || explicitRuntime || (cleanType === 'Movie' ? '2h 00m' : '45m / ep');
+    let genres = existing?.genres || (explicitGenres.length ? explicitGenres : [cleanType, 'Cinema']);
+    let synopsis = existing?.synopsis || explicitSynopsis || `Editorial feature critique of ${cleanTitle}.`;
+    let posterUrl = existing?.posterUrl || explicitPoster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop';
+    let bannerUrl = existing?.bannerUrl || explicitBanner || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop';
+    let trailerUrl = existing?.trailerUrl || explicitTrailer || undefined;
+
+    if (!existing && (!explicitDirector || !explicitPoster)) {
       try {
         const mediaResults = await searchMediaMetadata(cleanTitle, cleanType);
         if (mediaResults.length > 0) {
           const match = mediaResults[0];
-          if (match.director) director = match.director;
-          if (match.cast?.length) cast = match.cast;
-          if (match.runtime) runtime = match.runtime;
-          if (match.genres?.length) genres = match.genres;
-          if (match.synopsis) synopsis = match.synopsis;
-          if (match.posterUrl) posterUrl = match.posterUrl;
-          if (match.bannerUrl) bannerUrl = match.bannerUrl;
+          if (!explicitDirector && match.director) director = match.director;
+          if (!explicitCast.length && match.cast?.length) cast = match.cast;
+          if (!explicitRuntime && match.runtime) runtime = match.runtime;
+          if (!explicitGenres.length && match.genres?.length) genres = match.genres;
+          if (!explicitSynopsis && match.synopsis) synopsis = match.synopsis;
+          if (!explicitPoster && match.posterUrl) posterUrl = match.posterUrl;
+          if (!explicitBanner && match.bannerUrl) bannerUrl = match.bannerUrl;
+          if (!explicitTrailer && match.trailerUrl) trailerUrl = match.trailerUrl;
         }
       } catch (mediaErr) {
-        console.warn('Media enrichment non-blocking warning:', mediaErr);
+        console.warn('Media enrichment non-blocking notice:', mediaErr);
       }
     }
 
@@ -157,6 +179,7 @@ export async function POST(req: NextRequest) {
       id: reviewId,
       slug: finalSlug,
       title: cleanTitle,
+      originalTitle: originalTitle ? String(originalTitle).trim() : existing?.originalTitle,
       type: cleanType,
       status: 'published',
       releaseYear: cleanYear,
@@ -166,6 +189,7 @@ export async function POST(req: NextRequest) {
       genres,
       posterUrl,
       bannerUrl,
+      trailerUrl,
       abstractScore: normScore,
       myTake: headline || (rawTake ? String(rawTake).slice(0, 180) : `${cleanTitle} earns a ${normScore}/10 on The Abstract Take.`),
       streamingPlatforms: existing?.streamingPlatforms || [

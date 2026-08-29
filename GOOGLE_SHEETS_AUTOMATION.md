@@ -1,58 +1,48 @@
-# 🎬 The Abstract Take — Bulk Editorial Automation Architecture
-### Google Sheets + Google Apps Script + Gemini AI + Web Application Backend
+# 📊 The Abstract Take — Editorial Automation & Google Sheets Engine
 
-This architecture allows the creator of **The Abstract Take** to efficiently process, generate, and publish hundreds or thousands of previously watched movies, TV series, and anime reviews without manual per-review data entry.
+A robust, enterprise-grade serverless automation pipeline for bulk film/TV review generation and direct production publishing.
 
 ---
 
-## 🏗️ System Architecture & Workflow
+## 🏗️ Architecture & Philosophy
+
+The Abstract Take uses a **creator-first editorial model** and a **commercial-safe, independent first-party metadata architecture**:
+
+1. **Creator Opinion is Supreme**: The creator's numerical rating, raw take, likes, dislikes, and personal verdict are the sole authority.
+2. **First-Party Metadata Database**: The website stores and serves all editorial content directly from Supabase. No commercial external metadata provider (such as TMDB) is required to operate, generate, or publish reviews.
+3. **Optional AI Assistance**: Gemini 2.5 Flash acts as a high-fidelity drafting assistant that structures the creator's raw thoughts without inventing consensus or overwriting human critiques.
+4. **Hard Human Approval Gate**: Automation *never* auto-publishes without explicit creator approval (`Status: "Publish it"`).
 
 ```
 +-------------------------------------------------------------+
-| 1. CREATOR INPUT (Google Sheet)                             |
-|    - Title, Year, Media Type, Rating (1–10)                 |
-|    - Raw Take (Unfiltered notes)                            |
-|    - Likes, Dislikes, Personal Verdict                      |
+| 1. CREATOR INPUT (Google Sheet / CMS)                       |
+|    - Title, Release Year, Content Type, Rating              |
+|    - Raw Take, Likes, Dislikes, Personal Verdict            |
 |    - Status: "Pending"                                      |
 +------------------------------+------------------------------+
                                |
-                               | (Every 5 mins / Manual run)
                                v
 +-------------------------------------------------------------+
-| 2. GOOGLE APPS SCRIPT ENGINE                                |
-|    - Validates minimum required fields                      |
-|    - Checks LockService (Prevents race conditions)          |
-|    - Sends structured payload to Backend Generate API       |
-+------------------------------+------------------------------+
-                               |
-                               | (POST /api/automation/generate)
-                               v
-+-------------------------------------------------------------+
-| 3. THE ABSTRACT TAKE BACKEND & GEMINI ENGINE                |
-|    - Enforces Editorial Hierarchy (Creator Opinion 1st)     |
-|    - Generates ~250–300 word polished critique              |
-|    - Extracts Pros, Cons, Verdict, SEO, Tags                |
-+------------------------------+------------------------------+
-                               |
-                               | (Returns Structured JSON)
-                               v
-+-------------------------------------------------------------+
-| 4. SHEET UPDATED & APPROVAL GATE                            |
-|    - Populates Generated Columns (Headline, Review, etc.)   |
+| 2. GEMINI EDITORIAL SYNTHESIS (/api/automation/generate)    |
+|    - Polishes ~250–300 word review matching creator's voice |
+|    - Extracts Pros, Cons, Headline, SEO summary, Tags       |
 |    - Sets Status: "Review generated"                        |
-|    - CREATOR REVIEWS THE CONTENT                            |
-|    - Creator manually changes Status to: "Publish it"       |
 +------------------------------+------------------------------+
                                |
-                               | (POST /api/automation/publish)
                                v
 +-------------------------------------------------------------+
-| 5. REAL DATABASE INGESTION & PUBLICATION                    |
+| 3. CREATOR AUDIT & MANUAL APPROVAL GATE                     |
+|    - Creator reads the generated text in Google Sheet       |
+|    - Manually switches Status to: "Publish it"              |
++------------------------------+------------------------------+
+                               |
+                               v
++-------------------------------------------------------------+
+| 4. PRODUCTION INGESTION & PUBLICATION (/api/automation/pub) |
 |    - Idempotency check (No duplicates created)              |
-|    - Enriches posters, banners, director, cast metadata     |
-|    - Inserts into public database (data/reviews.json)       |
-|    - Live immediately across Latest Takes, Genres, Search   |
-|    - Sets Status: "Published" & writes Public URL           |
+|    - First-party Supabase database ingestion                |
+|    - Live immediately across Home, Categories, Tags, Search |
+|    - Sets Status: "Published" & writes Live URL             |
 +-------------------------------------------------------------+
 ```
 
@@ -60,14 +50,14 @@ This architecture allows the creator of **The Abstract Take** to efficiently pro
 
 ## 📋 1. Google Sheet Column Layout
 
-The Google Sheet consists of **21 columns** in the exact order below:
+### Standard 21-Column Baseline (Fully Supported & Authoritative)
 
 | # | Column Name | Required? | Description & Examples |
 |---|---|---|---|
 | **A** (1) | `TITLE` | **Yes** | e.g. `Dune: Part Two`, `Challengers`, `Severance` |
 | **B** (2) | `RELEASE YEAR` | **Yes** | e.g. `2024` |
 | **C** (3) | `CONTENT TYPE` | **Yes** | Dropdown: `Movie`, `Series`, `Mini Series`, `Anime`, `Documentary`, `Special` |
-| **D** (4) | `EXTERNAL MEDIA ID` | No | Optional TMDB or IMDb ID (e.g. `tt15239678`) |
+| **D** (4) | `EXTERNAL MEDIA ID` | No | Optional reference ID (e.g. `tt15239678` or IMDb ID) |
 | **E** (5) | `RATING` | **Yes** | Creator's authoritative score from `1` to `10` |
 | **F** (6) | `MY RAW TAKE` | **Yes** | Unfiltered creator impressions, thoughts, pacing, direction notes |
 | **G** (7) | `THINGS I LIKED` | No | Specific strengths (e.g. `Hans Zimmer score, Austin Butler performance`) |
@@ -85,6 +75,22 @@ The Google Sheet consists of **21 columns** in the exact order below:
 | **S** (19) | `PUBLISHED URL` | *Auto* | Live website URL written after publication |
 | **T** (20) | `LAST PROCESSED` | *Auto* | ISO timestamp of last automation activity |
 | **U** (21) | `AUTOMATION NOTES` | *Auto* | Diagnostic logs, error messages, or publication confirmation |
+
+### Optional Extended Metadata Columns (Placed After Column 21)
+
+To supply custom metadata directly from Google Sheets without depending on external lookup engines:
+
+| Column | Name | Optional? | Description |
+|---|---|---|---|
+| **V** (22) | `DIRECTOR` | Optional | Director / Creator full name |
+| **W** (23) | `CAST` | Optional | Comma-separated lead actors |
+| **X** (24) | `GENRES` | Optional | Comma-separated genres |
+| **Y** (25) | `RUNTIME` | Optional | e.g. `2h 15m` |
+| **Z** (26) | `POSTER URL` | Optional | Direct Cloudinary or custom image URL |
+| **AA** (27) | `BACKDROP URL` | Optional | Direct widescreen banner image URL |
+| **AB** (28) | `SYNOPSIS` | Optional | 2-3 sentence neutral overview |
+
+*Note: All extended columns are purely optional. If omitted, the publication backend automatically uses first-party fallback defaults.*
 
 ---
 
@@ -105,6 +111,7 @@ In your backend `.env` file (see [`.env.example`](file:///C:/Users/itspr/take/.e
 
 ```bash
 # Google Sheets Bulk Automation Secret Key (Must match CONFIG.AUTOMATION_SECRET in Google Apps Script)
+AUTOMATION_SECRET="the_abstract_take_sheets_automation_secret_key_2026"
 GOOGLE_SHEETS_AUTOMATION_SECRET="the_abstract_take_sheets_automation_secret_key_2026"
 
 # Canonical Site URL for generated public links
@@ -131,11 +138,10 @@ var CONFIG = {
   // Your deployed website URL or ngrok tunnel during development
   API_BASE_URL: "https://your-domain.com", // or "http://localhost:3000"
 
-  // Must match GOOGLE_SHEETS_AUTOMATION_SECRET in backend .env
+  // Must match AUTOMATION_SECRET in backend .env
   AUTOMATION_SECRET: "the_abstract_take_sheets_automation_secret_key_2026",
 
   SHEET_NAME: "Reviews Backlog",
-  // ...
 };
 ```
 
@@ -145,7 +151,7 @@ var CONFIG = {
 3. You will see a new menu: **🎬 The Abstract Take**.
 4. Click **🎬 The Abstract Take** > **📋 Setup Sheet Headers & Validation**.
    *(Grant permissions when prompted by Google).*
-5. The script will automatically format all 21 columns, set dark header styling, and configure the Status dropdowns.
+5. The script will automatically format all columns, set dark header styling, and configure the Status dropdowns.
 
 ### Step 5: Test Connection
 Click **🎬 The Abstract Take** > **🔍 Test Backend Connection**. You should see:
