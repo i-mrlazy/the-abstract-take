@@ -1,0 +1,30 @@
+[
+  {
+    "id": "sub-1",
+    "email": "kaelen.vance@cinema.io",
+    "subscribedAt": "2026-08-12T10:00:00Z",
+    "status": "active",
+    "preference": "all"
+  },
+  {
+    "id": "sub-2",
+    "email": "elena.rostova@filmfest.org",
+    "subscribedAt": "2026-08-14T15:30:00Z",
+    "status": "active",
+    "preference": "movies"
+  },
+  {
+    "id": "sub-3",
+    "email": "marcus.thorne@critique.net",
+    "subscribedAt": "2026-08-18T09:15:00Z",
+    "status": "active",
+    "preference": "all"
+  },
+  {
+    "id": "sub-4",
+    "email": "chloe.dupont@arte.tv",
+    "subscribedAt": "2026-08-21T18:45:00Z",
+    "status": "active",
+    "preference": "weekly_take"
+  }
+]

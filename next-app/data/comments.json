@@ -1,0 +1,20 @@
+[
+  {
+    "id": "comment-1",
+    "reviewId": "review-1",
+    "userName": "Kaelen Vance",
+    "content": "The point about Paul weaponizing religious prophecy instead of being a traditional hero is spot on. That infrared Giedi Prime sequence was mind-bending in IMAX!",
+    "createdAt": "2026-08-11T14:22:00Z",
+    "likes": 42,
+    "status": "approved"
+  },
+  {
+    "id": "comment-2",
+    "reviewId": "review-2",
+    "userName": "Elena Rostova",
+    "content": "The scene in the car where they share a cigarette through the sunroof broke something open inside me. Exceptional personal critique!",
+    "createdAt": "2026-07-29T14:22:00Z",
+    "likes": 28,
+    "status": "approved"
+  }
+]

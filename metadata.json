@@ -1,0 +1,6 @@
+{
+  "name": "The Abstract Take",
+  "description": "Personal movie, series, and anime reviews, opinions, and recommendations. My take on what's worth watching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

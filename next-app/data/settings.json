@@ -1,0 +1,16 @@
+{
+  "siteTitle": "The Abstract Take",
+  "siteTagline": "Independent Film, Television & Anime Critique",
+  "creatorName": "The Abstract Take",
+  "creatorBio": "Personal editorial review publication and cinema companion—an unfiltered home for thoughtful critique, 1–10 Abstract Scores, and curated watchlists.",
+  "creatorAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop",
+  "twitterUrl": "https://twitter.com/TheAbstractTake",
+  "letterboxdUrl": "https://letterboxd.com/TheAbstractTake",
+  "contactEmail": "editor@theabstracttake.com",
+  "defaultOgImage": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=1200&auto=format&fit=crop",
+  "analyticsId": "G-TAT-EDITORIAL",
+  "newsletterHeadline": "The Abstract Dispatch",
+  "newsletterSubheadline": "Weekly essays, spoiler-free verdicts, and handpicked cinema watchlists delivered every Friday.",
+  "enableComments": true,
+  "autoApproveComments": false
+}
