@@ -1,73 +1,84 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Menu, X, Settings } from 'lucide-react';
+import type { NavLinkItem } from './TopNavbar';
 
-export function MobileNavMenu() {
+interface MobileNavMenuProps {
+  navLinks: NavLinkItem[];
+}
+
+export function MobileNavMenu({ navLinks }: MobileNavMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close mobile drawer on route changes
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
+
+  // Close mobile drawer on screen resize to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isActive = (path: string) => {
+    if (path === '/') return pathname === '/';
+    return pathname.startsWith(path);
+  };
 
   return (
     <div className="lg:hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 text-gray-700 hover:text-[#008CFF] rounded-xl focus:outline-none cursor-pointer"
+        className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
         aria-label="Toggle navigation menu"
       >
-        {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
       {isOpen && (
-        <div className="absolute top-16 left-0 right-0 z-50 border-b border-gray-200/90 bg-[#FAF9F6] px-4 pt-3 pb-6 space-y-2 shadow-lg animate-in slide-in-from-top-2 duration-200">
-          <Link
-            href="/movies"
-            onClick={() => setIsOpen(false)}
-            className="block px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-800 hover:bg-white transition-colors"
-          >
-            Movies
-          </Link>
-          <Link
-            href="/series"
-            onClick={() => setIsOpen(false)}
-            className="block px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-800 hover:bg-white transition-colors"
-          >
-            Series
-          </Link>
-          <Link
-            href="/anime"
-            onClick={() => setIsOpen(false)}
-            className="block px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-800 hover:bg-white transition-colors"
-          >
-            Anime
-          </Link>
-          <Link
-            href="/recommends"
-            onClick={() => setIsOpen(false)}
-            className="block px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-800 hover:bg-white transition-colors"
-          >
-            The Abstract Recommends
-          </Link>
-          <Link
-            href="/what-to-watch-next"
-            onClick={() => setIsOpen(false)}
-            className="block px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-800 hover:bg-white transition-colors"
-          >
-            What To Watch
-          </Link>
-          <Link
-            href="/about"
-            onClick={() => setIsOpen(false)}
-            className="block px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-800 hover:bg-white transition-colors"
-          >
-            About & Scoring
-          </Link>
-          <Link
-            href="/contact"
-            onClick={() => setIsOpen(false)}
-            className="block px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-800 hover:bg-white transition-colors"
-          >
-            Contact
-          </Link>
+        <div className="absolute top-16 left-0 right-0 z-50 bg-[#161616] border-b border-gray-800 px-4 pt-3 pb-6 space-y-2 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+          <div className="space-y-1">
+            {navLinks.map((item) => {
+              const active = isActive(item.path);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  onClick={() => setIsOpen(false)}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase transition-all ${
+                    active
+                      ? 'bg-[#008CFF] text-white'
+                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-[#00C0FF]" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="pt-3 border-t border-gray-800 flex items-center justify-between">
+            <Link
+              href="/admin"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center space-x-2 text-xs font-mono text-gray-400 hover:text-white py-1 transition-colors"
+            >
+              <Settings className="w-4 h-4 text-[#008CFF]" />
+              <span>Editorial Studio (Admin)</span>
+            </Link>
+          </div>
         </div>
       )}
     </div>

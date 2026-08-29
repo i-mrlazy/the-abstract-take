@@ -1,79 +1,152 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  Film,
+  Clapperboard,
+  Tv,
+  Sparkles,
+  Compass,
+  Info,
+  Mail,
+  Settings,
+  Search,
+} from 'lucide-react';
 import { MobileNavMenu } from './MobileNavMenu';
-import { Search } from 'lucide-react';
+
+export interface NavLinkItem {
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+export const NAV_LINKS: NavLinkItem[] = [
+  { path: '/', label: 'My Take', icon: Film },
+  { path: '/reviews', label: 'All Reviews', icon: Clapperboard },
+  { path: '/movies', label: 'Movies', icon: Film },
+  { path: '/series', label: 'Series', icon: Tv },
+  { path: '/anime', label: 'Anime', icon: Sparkles },
+  { path: '/recommends', label: 'Recommends', icon: Compass },
+  { path: '/what-to-watch-next', label: 'What Next', icon: Sparkles },
+  { path: '/about', label: 'About', icon: Info },
+  { path: '/contact', label: 'Contact', icon: Mail },
+];
 
 export function TopNavbar() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Cmd+K / Ctrl+K keyboard shortcut to jump to /search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        router.push('/search');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [router]);
+
+  const isActive = (path: string) => {
+    if (path === '/') return pathname === '/';
+    return pathname.startsWith(path);
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-gray-200/80">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 md:h-20">
-          {/* Brand Logo */}
-          <div className="flex items-center space-x-6">
-            <Link href="/" className="group flex items-center space-x-3">
-              <div className="w-9 h-9 md:w-10 md:h-10 bg-[#008CFF] text-white rounded-xl flex items-center justify-center font-serif font-black text-lg shadow-xs group-hover:scale-105 transition-transform">
-                AT
-              </div>
-              <div className="flex flex-col">
-                <span className="font-serif font-black text-lg md:text-xl tracking-tight text-gray-950 group-hover:text-[#008CFF] transition-colors leading-none">
-                  THE ABSTRACT TAKE
-                </span>
-                <span className="text-[10px] font-mono tracking-widest text-[#008CFF] uppercase font-bold mt-1">
-                  Cinema & TV Editorial
-                </span>
-              </div>
-            </Link>
+    <header className="sticky top-0 z-40 w-full bg-[#111111] text-white border-b border-gray-800 shadow-md">
+      {/* Top Utility Micro-Bar */}
+      <div className="hidden md:block w-full bg-[#0A0A0A] border-b border-white/5 text-[11px] font-mono text-gray-400">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex items-center justify-between">
+          <div className="flex items-center space-x-3 whitespace-nowrap">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#008CFF] animate-pulse" />
+              <span className="text-gray-300 font-bold uppercase tracking-widest">
+                CRITICAL FILM & TV ESSAYS
+              </span>
+            </div>
+            <span className="text-gray-700">|</span>
+            <span className="text-gray-400 font-sans italic text-xs">
+              Personal takes on what’s truly worth watching.
+            </span>
           </div>
 
-          {/* Desktop Navigation Links (Server Rendered) */}
-          <nav className="hidden lg:flex items-center space-x-1">
+          <div className="flex items-center space-x-4 whitespace-nowrap">
             <Link
-              href="/movies"
-              className="px-3 py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-700 hover:text-[#008CFF] hover:bg-white/80 transition-all"
+              href="/admin"
+              className="flex items-center space-x-1.5 text-gray-400 hover:text-white transition-colors cursor-pointer text-xs"
             >
-              Movies
+              <Settings className="w-3 h-3 text-[#008CFF]" />
+              <span>Editorial Studio</span>
+              <span className="text-[9px] bg-white/10 px-1 py-0.2 rounded text-gray-300">
+                Admin
+              </span>
             </Link>
-            <Link
-              href="/series"
-              className="px-3 py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-700 hover:text-[#008CFF] hover:bg-white/80 transition-all"
-            >
-              Series
-            </Link>
-            <Link
-              href="/anime"
-              className="px-3 py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-700 hover:text-[#008CFF] hover:bg-white/80 transition-all"
-            >
-              Anime
-            </Link>
-            <Link
-              href="/recommends"
-              className="px-3 py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-700 hover:text-[#008CFF] hover:bg-white/80 transition-all"
-            >
-              The Abstract Recommends
-            </Link>
-            <Link
-              href="/what-to-watch-next"
-              className="px-3 py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-700 hover:text-[#008CFF] hover:bg-white/80 transition-all"
-            >
-              What To Watch
-            </Link>
-            <Link
-              href="/about"
-              className="px-3 py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-gray-700 hover:text-[#008CFF] hover:bg-white/80 transition-all"
-            >
-              About
-            </Link>
-            <Link
-              href="/search"
-              className="p-2 ml-1 text-gray-600 hover:text-[#008CFF] hover:bg-white rounded-xl transition-all"
-              aria-label="Search reviews"
-            >
-              <Search className="w-4 h-4" />
-            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Navigation Bar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-2 lg:gap-3">
+          {/* Left: Brand Identity */}
+          <Link
+            href="/"
+            className="flex items-center space-x-2.5 cursor-pointer group select-none flex-shrink-0"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#008CFF] via-[#00C0FF] to-cyan-300 flex items-center justify-center text-black font-black text-base shadow-sm group-hover:scale-105 transition-transform duration-200">
+              AT
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="font-serif font-black text-lg tracking-tight text-white group-hover:text-[#00C0FF] transition-colors leading-none">
+                THE ABSTRACT TAKE
+              </span>
+              <span className="text-[9.5px] font-mono uppercase tracking-widest text-gray-400 font-medium leading-tight mt-0.5">
+                My Take on What&apos;s Worth Watching
+              </span>
+            </div>
+          </Link>
+
+          {/* Desktop Navigation Links */}
+          <nav className="hidden lg:flex items-center space-x-1 font-sans text-xs uppercase tracking-wider font-bold">
+            {NAV_LINKS.map((item) => {
+              const active = isActive(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    active
+                      ? 'bg-[#008CFF] text-white shadow-xs font-bold'
+                      : 'text-gray-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
 
-          {/* Isolated Client Island for Mobile Menu */}
-          <MobileNavMenu />
+          {/* Action Icons */}
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Search Trigger */}
+            <Link
+              href="/search"
+              className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer flex items-center space-x-2 bg-white/5 border border-white/10"
+              title="Search takes (Cmd+K)"
+            >
+              <Search className="w-4 h-4 text-[#00C0FF]" />
+              <span className="hidden sm:inline text-xs font-mono text-gray-400">Search</span>
+              <kbd className="hidden md:inline text-[9px] font-mono bg-white/10 text-gray-400 px-1.5 py-0.5 rounded">
+                ⌘K
+              </kbd>
+            </Link>
+
+            {/* Mobile Menu Button */}
+            <MobileNavMenu navLinks={NAV_LINKS} />
+          </div>
         </div>
       </div>
     </header>
