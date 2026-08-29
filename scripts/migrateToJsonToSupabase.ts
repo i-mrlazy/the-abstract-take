@@ -29,6 +29,43 @@ export interface MigrationSummary {
   errors: string[];
 }
 
+/**
+ * Reusable Supabase / PostgREST error formatter.
+ * Formats message, code, details, and hint when available.
+ */
+export function formatSupabaseError(error: any): string {
+  if (!error) return "Message: Unknown error";
+  const parts: string[] = [];
+  if (error.message) parts.push(`Message: ${error.message}`);
+  if (error.code) parts.push(`Code: ${error.code}`);
+  if (error.details) parts.push(`Details: ${error.details}`);
+  if (error.hint) parts.push(`Hint: ${error.hint}`);
+
+  if (parts.length === 0) {
+    return `Message: ${typeof error === "object" ? JSON.stringify(error) : String(error)}`;
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Helper to record and immediately log errors consistently.
+ */
+function recordError(
+  summary: MigrationSummary,
+  table: string,
+  recordLabel: string,
+  recordId: string,
+  error: any
+): void {
+  summary.skipped++;
+  const formattedErr = formatSupabaseError(error);
+  const errorEntry = `${recordLabel}\nID: ${recordId}\n${formattedErr}`;
+  summary.errors.push(errorEntry);
+
+  console.error(`\n❌ [ERROR] Table: ${table} | ${recordLabel} | ID: ${recordId}`);
+  console.error(formattedErr);
+}
+
 export async function runMigration(): Promise<{ success: boolean; summaries: MigrationSummary[] }> {
   console.log("==================================================");
   console.log("🎬 THE ABSTRACT TAKE — DATABASE MIGRATION ENGINE");
@@ -55,8 +92,16 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
   for (const r of reviews) {
     const val = validateReviewInput(r);
     if (!val.valid) {
-      reviewSummary.skipped++;
-      reviewSummary.errors.push(`Review "${r.title || r.id}": ${val.errors.map((e) => e.message).join("; ")}`);
+      recordError(
+        reviewSummary,
+        "reviews",
+        `Review: ${r.title || "Untitled"}`,
+        r.id || "unknown-id",
+        {
+          message: "Input validation failed",
+          details: val.errors.map((e) => e.message).join("; "),
+        }
+      );
       continue;
     }
     reviewSummary.validRecords++;
@@ -65,8 +110,13 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
       const dbRow = mapReviewToDb(r);
       const { error } = await supabase.from("reviews").upsert(dbRow, { onConflict: "id" });
       if (error) {
-        reviewSummary.skipped++;
-        reviewSummary.errors.push(`Review "${r.title}": ${error.message}`);
+        recordError(
+          reviewSummary,
+          "reviews",
+          `Review: ${r.title}`,
+          r.id,
+          error
+        );
       } else {
         reviewSummary.migrated++;
       }
@@ -108,8 +158,13 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
         { onConflict: "id" }
       );
       if (error) {
-        recSummary.skipped++;
-        recSummary.errors.push(`List "${list.title}": ${error.message}`);
+        recordError(
+          recSummary,
+          "recommendation_lists",
+          `List: ${list.title}`,
+          list.id,
+          error
+        );
       } else {
         recSummary.migrated++;
       }
@@ -153,8 +208,13 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
         { onConflict: "id" }
       );
       if (error) {
-        whatNextSummary.skipped++;
-        whatNextSummary.errors.push(`Item "${item.title}": ${error.message}`);
+        recordError(
+          whatNextSummary,
+          "what_to_watch_next",
+          `Item: ${item.title}`,
+          item.id,
+          error
+        );
       } else {
         whatNextSummary.migrated++;
       }
@@ -193,8 +253,13 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
         { onConflict: "id" }
       );
       if (error) {
-        commentSummary.skipped++;
-        commentSummary.errors.push(`Comment "${c.id}": ${error.message}`);
+        recordError(
+          commentSummary,
+          "comments",
+          `Comment on review: ${c.reviewId || "unknown"} (by ${c.userName || "anonymous"})`,
+          c.id,
+          error
+        );
       } else {
         commentSummary.migrated++;
       }
@@ -228,8 +293,13 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
         { onConflict: "email" }
       );
       if (error) {
-        subSummary.skipped++;
-        subSummary.errors.push(`Subscriber "${s.email}": ${error.message}`);
+        recordError(
+          subSummary,
+          "newsletter_subscribers",
+          `Subscriber: ${s.email}`,
+          s.id,
+          error
+        );
       } else {
         subSummary.migrated++;
       }
@@ -273,8 +343,13 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
         { onConflict: "id" }
       );
       if (error) {
-        settingsSummary.skipped++;
-        settingsSummary.errors.push(`Settings: ${error.message}`);
+        recordError(
+          settingsSummary,
+          "site_settings",
+          "Site Settings",
+          "default_settings",
+          error
+        );
       } else {
         settingsSummary.migrated++;
       }
@@ -296,10 +371,17 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
   };
 
   for (const tag of tags) {
+    const cleanTag = tag.trim();
     if (supabase) {
-      const { error } = await supabase.from("tags").upsert({ name: tag.trim() }, { onConflict: "name" });
+      const { error } = await supabase.from("tags").upsert({ name: cleanTag }, { onConflict: "name" });
       if (error) {
-        tagSummary.skipped++;
+        recordError(
+          tagSummary,
+          "tags",
+          `Tag: ${cleanTag}`,
+          cleanTag,
+          error
+        );
       } else {
         tagSummary.migrated++;
       }
@@ -310,7 +392,7 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
   summaries.push(tagSummary);
 
   // Print Summary Table
-  console.log("----------------------------------------------------------------------------------");
+  console.log("\n----------------------------------------------------------------------------------");
   console.log("| Table Name               | In JSON | Valid | Migrated | Skipped | Errors       |");
   console.log("----------------------------------------------------------------------------------");
   for (const s of summaries) {
@@ -326,7 +408,31 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
 
   const totalMigrated = summaries.reduce((sum, s) => sum + s.migrated, 0);
   const totalErrors = summaries.reduce((sum, s) => sum + s.errors.length, 0);
-  console.log(`\n✅ Migration Finished: ${totalMigrated} records processed, ${totalErrors} errors.`);
+
+  // Print Detailed Error Report if any errors occurred
+  if (totalErrors > 0) {
+    console.log("\n==================================================");
+    console.log("❌ DETAILED MIGRATION ERRORS");
+    console.log("==================================================");
+    for (const s of summaries) {
+      if (s.errors.length > 0) {
+        console.log(`\n📌 TABLE: ${s.table}`);
+        console.log("--------------------------------------------------");
+        for (const err of s.errors) {
+          console.log(err);
+          console.log("");
+        }
+      }
+    }
+    console.log("==================================================");
+  }
+
+  // Print Final Status Message
+  if (totalErrors === 0) {
+    console.log(`\n✅ Migration Finished Successfully: ${totalMigrated} records processed, 0 errors.`);
+  } else {
+    console.log(`\n⚠️ Migration Finished With Errors: ${totalMigrated} records processed, ${totalErrors} errors.`);
+  }
 
   return {
     success: totalErrors === 0,
@@ -335,6 +441,6 @@ export async function runMigration(): Promise<{ success: boolean; summaries: Mig
 }
 
 runMigration().catch((e) => {
-  console.error("Migration failed with error:", e);
+  console.error("Migration failed with fatal error:", e);
   process.exit(1);
 });

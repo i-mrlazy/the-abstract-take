@@ -17,6 +17,7 @@ export class SubscriberRepository {
           if (process.env.NODE_ENV === 'production') {
             throw new Error(`[DATABASE ERROR] Supabase getAll subscribers failed: ${error.message}`);
           }
+          console.warn('[DEV NOTICE] Supabase query error, falling back to baseline subscribers:', error.message);
         } else if (data) {
           return data.map((row: any) => ({
             id: row.id,
@@ -38,69 +39,71 @@ export class SubscriberRepository {
   ): Promise<{ subscriber: NewsletterSubscriber; isNew: boolean }> {
     const cleanEmail = email.trim().toLowerCase();
 
-    if (process.env.NODE_ENV === 'production') {
-      if (!isServerSupabaseConfigured()) {
-        throw new Error('[DATABASE FATAL] Supabase PostgreSQL is required in production, but is not configured.');
-      }
+    if (isServerSupabaseConfigured()) {
       const supabase = getServerSupabaseClient();
-      if (!supabase) {
-        throw new Error('[DATABASE FATAL] Failed to initialize Supabase client in production.');
-      }
+      if (supabase) {
+        // Check existing subscriber in Supabase
+        const { data: existing, error: findError } = await supabase
+          .from('newsletter_subscribers')
+          .select('*')
+          .eq('email', cleanEmail)
+          .maybeSingle();
 
-      // Check existing subscriber in Supabase
-      const { data: existing, error: findError } = await supabase
-        .from('newsletter_subscribers')
-        .select('*')
-        .eq('email', cleanEmail)
-        .maybeSingle();
-
-      if (findError) {
-        throw new Error(`[DATABASE ERROR] Supabase find subscriber failed: ${findError.message}`);
-      }
-
-      if (existing) {
-        if (existing.status === 'unsubscribed') {
-          const { error: updateError } = await supabase
-            .from('newsletter_subscribers')
-            .update({ status: 'active', preference })
-            .eq('id', existing.id);
-          if (updateError) {
-            throw new Error(`[DATABASE ERROR] Supabase update subscriber failed: ${updateError.message}`);
+        if (findError) {
+          if (process.env.NODE_ENV === 'production') {
+            throw new Error(`[DATABASE ERROR] Supabase find subscriber failed: ${findError.message}`);
           }
+          console.warn('[DEV NOTICE] Supabase find subscriber error:', findError.message);
         }
-        return {
-          subscriber: {
-            id: existing.id,
-            email: existing.email,
-            subscribedAt: existing.subscribed_at,
-            status: 'active',
-            preference,
-          },
-          isNew: false,
+
+        if (existing) {
+          if (existing.status === 'unsubscribed') {
+            const { error: updateError } = await supabase
+              .from('newsletter_subscribers')
+              .update({ status: 'active', preference })
+              .eq('id', existing.id);
+            if (updateError) {
+              throw new Error(`[DATABASE ERROR] Supabase update subscriber failed: ${updateError.message}`);
+            }
+          }
+          return {
+            subscriber: {
+              id: existing.id,
+              email: existing.email,
+              subscribedAt: existing.subscribed_at,
+              status: 'active',
+              preference,
+            },
+            isNew: false,
+          };
+        }
+
+        const newSub: NewsletterSubscriber = {
+          id: `sub-${Date.now()}`,
+          email: cleanEmail,
+          subscribedAt: new Date().toISOString(),
+          status: 'active',
+          preference,
         };
+
+        const { error: insertError } = await supabase.from('newsletter_subscribers').insert({
+          id: newSub.id,
+          email: newSub.email,
+          subscribed_at: newSub.subscribedAt,
+          status: newSub.status,
+          preference: newSub.preference,
+        });
+
+        if (insertError) {
+          throw new Error(`[DATABASE ERROR] Supabase insert subscriber failed: ${insertError.message}`);
+        }
+
+        return { subscriber: newSub, isNew: true };
       }
+    }
 
-      const newSub: NewsletterSubscriber = {
-        id: `sub-${Date.now()}`,
-        email: cleanEmail,
-        subscribedAt: new Date().toISOString(),
-        status: 'active',
-        preference,
-      };
-
-      const { error: insertError } = await supabase.from('newsletter_subscribers').insert({
-        id: newSub.id,
-        email: newSub.email,
-        subscribed_at: newSub.subscribedAt,
-        status: newSub.status,
-        preference: newSub.preference,
-      });
-
-      if (insertError) {
-        throw new Error(`[DATABASE ERROR] Supabase insert subscriber failed: ${insertError.message}`);
-      }
-
-      return { subscriber: newSub, isNew: true };
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[DATABASE FATAL] Supabase PostgreSQL is required in production, but is not configured.');
     }
 
     // Development only: Local JSON fallback
@@ -112,15 +115,6 @@ export class SubscriberRepository {
         existing.status = 'active';
         existing.preference = preference;
         writeJsonFile(SUBSCRIBERS_FILE, subscribers);
-
-        if (isServerSupabaseConfigured()) {
-          const supabase = getServerSupabaseClient();
-          supabase
-            ?.from('newsletter_subscribers')
-            .update({ status: 'active', preference })
-            .eq('id', existing.id)
-            .then(() => {}, () => {});
-        }
       }
       return { subscriber: existing, isNew: false };
     }
@@ -136,48 +130,29 @@ export class SubscriberRepository {
     subscribers.unshift(newSub);
     writeJsonFile(SUBSCRIBERS_FILE, subscribers);
 
-    if (isServerSupabaseConfigured()) {
-      const supabase = getServerSupabaseClient();
-      supabase
-        ?.from('newsletter_subscribers')
-        .insert({
-          id: newSub.id,
-          email: newSub.email,
-          subscribed_at: newSub.subscribedAt,
-          status: newSub.status,
-          preference: newSub.preference,
-        })
-        .then(() => {}, () => {});
-    }
-
     return { subscriber: newSub, isNew: true };
   }
 
   async removeSubscriber(id: string): Promise<boolean> {
-    if (process.env.NODE_ENV === 'production') {
-      if (!isServerSupabaseConfigured()) {
-        throw new Error('[DATABASE FATAL] Supabase PostgreSQL is required in production, but is not configured.');
-      }
+    if (isServerSupabaseConfigured()) {
       const supabase = getServerSupabaseClient();
-      if (!supabase) {
-        throw new Error('[DATABASE FATAL] Failed to initialize Supabase client in production.');
+      if (supabase) {
+        const { error } = await supabase.from('newsletter_subscribers').delete().or(`id.eq.${id},email.eq.${id}`);
+        if (error) {
+          throw new Error(`[DATABASE ERROR] Supabase removeSubscriber failed: ${error.message}`);
+        }
+        return true;
       }
-      const { error } = await supabase.from('newsletter_subscribers').delete().or(`id.eq.${id},email.eq.${id}`);
-      if (error) {
-        throw new Error(`[DATABASE ERROR] Supabase removeSubscriber failed: ${error.message}`);
-      }
-      return true;
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[DATABASE FATAL] Supabase PostgreSQL is required in production, but is not configured.');
     }
 
     // Development only: Local JSON fallback
     const subscribers = readJsonFile<NewsletterSubscriber[]>(SUBSCRIBERS_FILE, []);
     const filtered = subscribers.filter((s) => s.id !== id && s.email !== id);
     writeJsonFile(SUBSCRIBERS_FILE, filtered);
-
-    if (isServerSupabaseConfigured()) {
-      const supabase = getServerSupabaseClient();
-      supabase?.from('newsletter_subscribers').delete().or(`id.eq.${id},email.eq.${id}`).then(() => {}, () => {});
-    }
 
     return true;
   }

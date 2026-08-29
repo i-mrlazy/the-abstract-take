@@ -1,10 +1,16 @@
 import React from 'react';
 import Link from 'next/link';
+import { NewsletterSubscribeForm } from '../newsletter/NewsletterSubscribeForm';
 
 export function Footer() {
   return (
     <footer className="bg-white border-t border-gray-200/90 py-12 md:py-16 mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+        {/* Newsletter Section */}
+        <div className="bg-gray-50/80 border border-gray-200/80 rounded-3xl p-6 sm:p-8">
+          <NewsletterSubscribeForm />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-12 border-b border-gray-100">
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center space-x-3">
@@ -65,7 +71,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs font-mono text-gray-500">
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between text-xs font-mono text-gray-500">
           <p>© {new Date().getFullYear()} The Abstract Take. Independent Personal Publication.</p>
           <p className="mt-2 sm:mt-0">Creator rating is authoritative.</p>
         </div>

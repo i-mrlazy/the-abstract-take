@@ -290,3 +290,50 @@ CREATE POLICY "Tags are readable by everyone" ON tags
 
 CREATE POLICY "Admins can manage tags" ON tags
   FOR ALL USING (public.is_admin());
+
+-- ==============================================================================
+-- ROLE PERMISSIONS & GRANTS (LEAST-PRIVILEGE MODEL)
+-- ==============================================================================
+
+-- 1. Schema Usage
+GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+
+-- 2. Function Execution
+GRANT EXECUTE ON FUNCTION public.is_admin() TO postgres, anon, authenticated, service_role;
+
+-- 3. Service Role & Postgres Privileges (Full Backend CRUD Access)
+GRANT ALL ON TABLE profiles TO postgres, service_role;
+GRANT ALL ON TABLE reviews TO postgres, service_role;
+GRANT ALL ON TABLE recommendation_lists TO postgres, service_role;
+GRANT ALL ON TABLE what_to_watch_next TO postgres, service_role;
+GRANT ALL ON TABLE comments TO postgres, service_role;
+GRANT ALL ON TABLE newsletter_subscribers TO postgres, service_role;
+GRANT ALL ON TABLE site_settings TO postgres, service_role;
+GRANT ALL ON TABLE tags TO postgres, service_role;
+
+-- 4. Least-Privilege Client Role Grants (Governed by RLS Policies)
+GRANT SELECT ON TABLE profiles TO anon;
+GRANT SELECT, UPDATE ON TABLE profiles TO authenticated;
+
+GRANT SELECT ON TABLE reviews TO anon, authenticated;
+GRANT SELECT ON TABLE recommendation_lists TO anon, authenticated;
+GRANT SELECT ON TABLE what_to_watch_next TO anon, authenticated;
+
+GRANT SELECT, INSERT ON TABLE comments TO anon, authenticated;
+GRANT INSERT ON TABLE newsletter_subscribers TO anon, authenticated;
+
+GRANT SELECT ON TABLE site_settings TO anon, authenticated;
+GRANT SELECT ON TABLE tags TO anon, authenticated;
+
+-- 5. Sequences & Default Privileges
+-- NOTE: In PostgreSQL, ALTER DEFAULT PRIVILEGES applies ONLY to objects created
+-- in the future by the target role (e.g. postgres). It does not universally grant
+-- access to objects created by arbitrary roles.
+-- Future tables must receive explicit GRANT statements upon creation.
+-- No automatic client-role privileges (anon/authenticated) are granted for future tables.
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role;
+
