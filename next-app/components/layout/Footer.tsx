@@ -1,7 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { NewsletterSubscribeForm } from '../newsletter/NewsletterSubscribeForm';
-import { Heart, Sparkles, Settings } from 'lucide-react';
+import { CuratorAiTrigger } from '../ai/CuratorAiTrigger';
+import { Heart, Settings } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -28,13 +29,7 @@ export function Footer() {
               An independent editorial publication offering unfiltered movie, TV series, anime, and documentary critiques scored on the calibrated 1–10 Abstract Scale.
             </p>
             <div className="pt-2">
-              <Link
-                href="/what-to-watch-next"
-                className="inline-flex items-center space-x-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-mono px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#00C0FF]" />
-                <span>What Should I Watch Next?</span>
-              </Link>
+              <CuratorAiTrigger label="Curator AI Assistant" />
             </div>
           </div>
 

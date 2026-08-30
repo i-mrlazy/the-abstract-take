@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Settings, Bookmark } from 'lucide-react';
+import { Menu, X, Settings, Bookmark, Sparkles } from 'lucide-react';
 import type { NavLinkItem } from './TopNavbar';
 import { useBookmarks } from '@/lib/context/BookmarksContext';
+import { useAiConcierge } from '@/lib/context/AiConciergeContext';
 
 interface MobileNavMenuProps {
   navLinks: NavLinkItem[];
@@ -15,6 +16,7 @@ export function MobileNavMenu({ navLinks }: MobileNavMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const { bookmarkedCount, openDrawer } = useBookmarks();
+  const { openConcierge } = useAiConcierge();
 
   // Close mobile drawer on route changes
   useEffect(() => {
@@ -49,6 +51,23 @@ export function MobileNavMenu({ navLinks }: MobileNavMenuProps) {
 
       {isOpen && (
         <div className="absolute top-16 left-0 right-0 z-50 bg-[#161616] border-b border-gray-800 px-4 pt-3 pb-6 space-y-3 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+          {/* Curator AI Quick Action */}
+          <button
+            onClick={() => {
+              setIsOpen(false);
+              openConcierge();
+            }}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold uppercase transition-all bg-gradient-to-r from-[#008CFF]/20 to-cyan-500/20 border border-[#008CFF]/40 text-white hover:bg-[#008CFF]/30 cursor-pointer"
+          >
+            <div className="flex items-center space-x-2.5">
+              <Sparkles className="w-4 h-4 text-[#00C0FF]" />
+              <span>What Should I Watch Next? (Curator AI)</span>
+            </div>
+            <span className="bg-[#008CFF] text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">
+              AI
+            </span>
+          </button>
+
           {/* Saved Takes Quick Action */}
           <button
             onClick={() => {

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { MobileNavMenu } from './MobileNavMenu';
 import { useBookmarks } from '@/lib/context/BookmarksContext';
+import { useAiConcierge } from '@/lib/context/AiConciergeContext';
 
 export interface NavLinkItem {
   path: string;
@@ -40,6 +41,7 @@ export function TopNavbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { bookmarkedCount, openDrawer } = useBookmarks();
+  const { openConcierge } = useAiConcierge();
 
   // Cmd+K / Ctrl+K keyboard shortcut to jump to /search
   useEffect(() => {
@@ -146,6 +148,17 @@ export function TopNavbar() {
                 ⌘K
               </kbd>
             </Link>
+
+            {/* AI Concierge Trigger */}
+            <button
+              onClick={openConcierge}
+              className="bg-gradient-to-r from-[#008CFF] to-cyan-500 hover:from-[#0077dd] hover:to-cyan-600 text-white p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-mono font-bold uppercase flex items-center space-x-1.5 shadow-sm hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
+              title="Personal AI Recommendation Concierge"
+              aria-label="Open AI Recommendation Concierge"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">Curator AI</span>
+            </button>
 
             {/* Bookmarks Drawer Trigger */}
             <button

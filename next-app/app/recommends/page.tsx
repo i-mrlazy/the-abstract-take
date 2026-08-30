@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { db } from '@/lib/db';
 import { Sparkles, ArrowRight, Layers } from 'lucide-react';
+import { CuratorAiTrigger } from '@/components/ai/CuratorAiTrigger';
 
 export const metadata: Metadata = {
   title: 'The Abstract Recommends — Curated Cinema Watchlists',
@@ -20,16 +21,22 @@ export default async function RecommendsListPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-10">
       {/* Header */}
-      <header className="border-b border-gray-200/80 pb-6">
-        <span className="inline-block px-3 py-1 bg-[#008CFF]/10 text-[#008CFF] rounded-full text-xs font-mono font-bold uppercase tracking-wider mb-3">
+      <header className="border-b border-gray-200/80 pb-6 space-y-3">
+        <span className="inline-block px-3 py-1 bg-[#008CFF]/10 text-[#008CFF] rounded-full text-xs font-mono font-bold uppercase tracking-wider">
           Editorial Collections
         </span>
         <h1 className="font-serif font-black text-3xl sm:text-4xl md:text-5xl text-gray-950 tracking-tight">
           The Abstract Recommends
         </h1>
-        <p className="font-news text-base sm:text-lg text-gray-600 max-w-2xl mt-2 leading-relaxed">
+        <p className="font-news text-base sm:text-lg text-gray-600 max-w-2xl leading-relaxed">
           Themed cinematic journeys, definitive genre canons, and bespoke double-features curated strictly on artistic merit.
         </p>
+        <div className="pt-2">
+          <CuratorAiTrigger
+            variant="banner"
+            label="What Should I Watch Next? (Curator AI)"
+          />
+        </div>
       </header>
 
       {/* Grid of Recommendation Collections */}

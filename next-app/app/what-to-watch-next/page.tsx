@@ -2,6 +2,7 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { db } from '@/lib/db';
 import { AbstractScoreBadge } from '@/components/ui/AbstractScoreBadge';
+import { CuratorAiTrigger } from '@/components/ai/CuratorAiTrigger';
 import { Sparkles, Tv, Flame, Compass } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -20,17 +21,23 @@ export default async function WhatToWatchNextPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-10">
       {/* Header */}
-      <header className="border-b border-gray-200/80 pb-6">
-        <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#008CFF]/10 text-[#008CFF] rounded-full text-xs font-mono font-bold uppercase tracking-wider mb-3">
+      <header className="border-b border-gray-200/80 pb-6 space-y-3">
+        <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#008CFF]/10 text-[#008CFF] rounded-full text-xs font-mono font-bold uppercase tracking-wider">
           <Compass className="w-3.5 h-3.5" />
           <span>Curated Discovery</span>
         </span>
         <h1 className="font-serif font-black text-3xl sm:text-4xl md:text-5xl text-gray-950 tracking-tight">
           What Should I Watch Next?
         </h1>
-        <p className="font-news text-base sm:text-lg text-gray-600 max-w-2xl mt-2 leading-relaxed">
+        <p className="font-news text-base sm:text-lg text-gray-600 max-w-2xl leading-relaxed">
           Bespoke watch recommendations tailored for immediate mood, atmosphere, and cinematic appetite. Handpicked by the editor.
         </p>
+        <div className="pt-2">
+          <CuratorAiTrigger
+            variant="banner"
+            label="Open AI Recommendation Concierge"
+          />
+        </div>
       </header>
 
       {/* Grid of Discovery Picks */}

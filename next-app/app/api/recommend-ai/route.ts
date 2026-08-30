@@ -3,7 +3,13 @@ import { getGeminiClient } from '@/lib/editorial/assistant';
 
 export async function POST(req: NextRequest) {
   try {
-    const { mood, favoriteFilms, mediaType, timeAvailable } = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+    const { mood, favoriteFilms, mediaType, timeAvailable } = body;
     const ai = getGeminiClient();
 
     if (!ai) {
