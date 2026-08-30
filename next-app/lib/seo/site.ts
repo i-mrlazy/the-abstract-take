@@ -27,11 +27,14 @@ export function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '');
   }
-  if (process.env.VERCEL_URL) {
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/+$/, '')}`;
+  }
+  if (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('-git-') && !process.env.VERCEL_URL.includes('.vercel.app')) {
     return `https://${process.env.VERCEL_URL.replace(/\/+$/, '')}`;
   }
   if (process.env.NODE_ENV === 'development') {
     return 'http://localhost:3000';
   }
-  return 'https://theabstracttake.com';
+  return 'https://the-abstract-take.vercel.app';
 }
