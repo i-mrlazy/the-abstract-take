@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -8,33 +8,32 @@ import {
   Clapperboard,
   Tv,
   Sparkles,
-  Compass,
   Info,
   Mail,
   Settings,
   Search,
   Bookmark,
+  ChevronDown,
+  Compass,
 } from 'lucide-react';
 import { MobileNavMenu } from './MobileNavMenu';
 import { useBookmarks } from '@/lib/context/BookmarksContext';
 import { useAiConcierge } from '@/lib/context/AiConciergeContext';
 
-export interface NavLinkItem {
+export interface ReviewCategoryItem {
   path: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  description: string;
 }
 
-export const NAV_LINKS: NavLinkItem[] = [
-  { path: '/', label: 'My Take', icon: Film },
-  { path: '/reviews', label: 'All Reviews', icon: Clapperboard },
-  { path: '/movies', label: 'Movies', icon: Film },
-  { path: '/series', label: 'Series', icon: Tv },
-  { path: '/anime', label: 'Anime', icon: Sparkles },
-  { path: '/recommends', label: 'Recommends', icon: Compass },
-  { path: '/what-to-watch-next', label: 'What Next', icon: Sparkles },
-  { path: '/about', label: 'About', icon: Info },
-  { path: '/contact', label: 'Contact', icon: Mail },
+export const REVIEW_CATEGORIES: ReviewCategoryItem[] = [
+  { path: '/reviews', label: 'All Reviews', description: 'Complete critique archives across all formats' },
+  { path: '/movies', label: 'Movies', description: 'Feature films, arthouse, & auteur cinema' },
+  { path: '/series', label: 'Series', description: 'Long-form television & prestige series' },
+  { path: '/anime', label: 'Anime', description: 'Feature anime & canonical animation' },
+  { path: '/documentaries', label: 'Documentaries', description: 'Non-fiction & investigative essays' },
+  { path: '/mini-series', label: 'Mini-Series', description: 'Limited series & self-contained stories' },
+  { path: '/specials', label: 'Specials', description: 'Directorial cuts & cinematic events' },
 ];
 
 export function TopNavbar() {
@@ -42,6 +41,9 @@ export function TopNavbar() {
   const router = useRouter();
   const { bookmarkedCount, openDrawer } = useBookmarks();
   const { openConcierge } = useAiConcierge();
+
+  const [reviewsDropdownOpen, setReviewsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Cmd+K / Ctrl+K keyboard shortcut to jump to /search
   useEffect(() => {
@@ -55,10 +57,42 @@ export function TopNavbar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [router]);
 
-  const isActive = (path: string) => {
-    if (path === '/') return pathname === '/';
-    return pathname.startsWith(path);
-  };
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setReviewsDropdownOpen(false);
+      }
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setReviewsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
+
+  // Close dropdown on route change
+  useEffect(() => {
+    setReviewsDropdownOpen(false);
+  }, [pathname]);
+
+  const isReviewActive =
+    pathname === '/reviews' ||
+    pathname.startsWith('/reviews/') ||
+    pathname === '/movies' ||
+    pathname === '/series' ||
+    pathname === '/anime' ||
+    pathname === '/documentaries' ||
+    pathname === '/mini-series' ||
+    pathname === '/specials';
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#111111] text-white border-b border-gray-800 shadow-md">
@@ -96,10 +130,11 @@ export function TopNavbar() {
       {/* Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-2 lg:gap-3">
-          {/* Left: Brand Identity */}
+          {/* Left: Brand Identity (Links to Home /) */}
           <Link
             href="/"
             className="flex items-center space-x-2.5 cursor-pointer group select-none flex-shrink-0"
+            title="The Abstract Take — Home"
           >
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#008CFF] via-[#00C0FF] to-cyan-300 flex items-center justify-center text-black font-black text-base shadow-sm group-hover:scale-105 transition-transform duration-200">
               AT
@@ -109,29 +144,111 @@ export function TopNavbar() {
                 THE ABSTRACT TAKE
               </span>
               <span className="text-[9.5px] font-mono uppercase tracking-widest text-gray-400 font-medium leading-tight mt-0.5">
-                My Take on What&apos;s Worth Watching
+                Uncompromising Cinema Critique
               </span>
             </div>
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center space-x-1 font-sans text-xs uppercase tracking-wider font-bold">
-            {NAV_LINKS.map((item) => {
-              const active = isActive(item.path);
-              return (
+          <nav className="hidden lg:flex items-center space-x-2 font-sans text-xs uppercase tracking-wider font-bold">
+            {/* All Reviews with Accessible Dropdown */}
+            <div className="relative" ref={dropdownRef}>
+              <div
+                className={`inline-flex items-center rounded-lg transition-all ${
+                  isReviewActive
+                    ? 'bg-[#008CFF] text-white shadow-xs'
+                    : 'text-gray-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
                 <Link
-                  key={item.path}
-                  href={item.path}
-                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
-                    active
-                      ? 'bg-[#008CFF] text-white shadow-xs font-bold'
-                      : 'text-gray-300 hover:text-white hover:bg-white/5'
-                  }`}
+                  href="/reviews"
+                  className="px-3 py-2 flex items-center space-x-1.5 cursor-pointer"
                 >
-                  <span>{item.label}</span>
+                  <span>All Reviews</span>
                 </Link>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={() => setReviewsDropdownOpen((prev) => !prev)}
+                  className={`px-1.5 py-2 rounded-r-lg transition-colors cursor-pointer ${
+                    isReviewActive ? 'hover:bg-[#0077dd]' : 'hover:bg-white/10'
+                  }`}
+                  aria-expanded={reviewsDropdownOpen}
+                  aria-haspopup="true"
+                  aria-label="Toggle Reviews Category Menu"
+                >
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      reviewsDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Dropdown Menu */}
+              {reviewsDropdownOpen && (
+                <div className="absolute top-full left-0 mt-2 w-72 bg-[#161616] border border-gray-800 rounded-2xl p-2 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
+                  <div className="text-[10px] font-mono font-bold tracking-widest text-gray-500 uppercase px-3 py-1.5 border-b border-gray-800 mb-1">
+                    Review Archives by Format
+                  </div>
+                  <div className="space-y-0.5">
+                    {REVIEW_CATEGORIES.map((cat) => {
+                      const active = pathname === cat.path;
+                      return (
+                        <Link
+                          key={cat.path}
+                          href={cat.path}
+                          onClick={() => setReviewsDropdownOpen(false)}
+                          className={`block px-3 py-2 rounded-xl transition-all ${
+                            active
+                              ? 'bg-[#008CFF] text-white font-bold'
+                              : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <div className="text-xs font-mono font-bold">{cat.label}</div>
+                          <div className="text-[10px] text-gray-400 font-sans normal-case truncate">
+                            {cat.description}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* What Should I Watch Next? (Unified Discovery CTA) */}
+            <button
+              onClick={openConcierge}
+              className="px-3.5 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[#00C0FF] hover:text-white transition-all flex items-center space-x-1.5 cursor-pointer font-bold"
+              title="Personalized recommendation discovery engine"
+            >
+              <Compass className="w-3.5 h-3.5 text-[#00C0FF]" />
+              <span>What Should I Watch Next?</span>
+            </button>
+
+            {/* About */}
+            <Link
+              href="/about"
+              className={`px-3 py-2 rounded-lg transition-all cursor-pointer ${
+                pathname === '/about'
+                  ? 'bg-[#008CFF] text-white shadow-xs font-bold'
+                  : 'text-gray-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>About</span>
+            </Link>
+
+            {/* Contact */}
+            <Link
+              href="/contact"
+              className={`px-3 py-2 rounded-lg transition-all cursor-pointer ${
+                pathname === '/contact'
+                  ? 'bg-[#008CFF] text-white shadow-xs font-bold'
+                  : 'text-gray-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>Contact</span>
+            </Link>
           </nav>
 
           {/* Action Icons */}
@@ -149,25 +266,16 @@ export function TopNavbar() {
               </kbd>
             </Link>
 
-            {/* AI Concierge Trigger */}
-            <button
-              onClick={openConcierge}
-              className="bg-gradient-to-r from-[#008CFF] to-cyan-500 hover:from-[#0077dd] hover:to-cyan-600 text-white p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-mono font-bold uppercase flex items-center space-x-1.5 shadow-sm hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
-              title="Personal AI Recommendation Concierge"
-              aria-label="Open AI Recommendation Concierge"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">Curator AI</span>
-            </button>
-
             {/* Bookmarks Drawer Trigger */}
             <button
               onClick={openDrawer}
-              className="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              className="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-white/10"
               title="Saved takes"
               aria-label={`Saved takes (${bookmarkedCount})`}
             >
-              <Bookmark className={`w-4 h-4 ${bookmarkedCount > 0 ? 'fill-[#008CFF] text-[#008CFF]' : ''}`} />
+              <Bookmark
+                className={`w-4 h-4 ${bookmarkedCount > 0 ? 'fill-[#008CFF] text-[#008CFF]' : ''}`}
+              />
               {bookmarkedCount > 0 && (
                 <span className="absolute top-1 right-1 w-4 h-4 bg-[#008CFF] text-white text-[9px] font-mono font-bold rounded-full flex items-center justify-center border border-[#111111] shadow-2xs">
                   {bookmarkedCount}
@@ -176,7 +284,7 @@ export function TopNavbar() {
             </button>
 
             {/* Mobile Menu Button */}
-            <MobileNavMenu navLinks={NAV_LINKS} />
+            <MobileNavMenu />
           </div>
         </div>
       </div>

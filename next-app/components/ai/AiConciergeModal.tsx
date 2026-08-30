@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Sparkles,
   X,
@@ -9,13 +10,14 @@ import {
   RefreshCw,
   Mail,
   CheckCircle2,
-  ShieldCheck,
   ArrowRight,
   AlertCircle,
   Film,
+  ExternalLink,
 } from 'lucide-react';
 import { useAiConcierge } from '@/lib/context/AiConciergeContext';
 import { AbstractScoreBadge } from '../ui/AbstractScoreBadge';
+import { BookmarkButton } from '../bookmarks/BookmarkButton';
 import { normalizeScore } from '@/lib/utils/rating';
 import type { Review } from '@/types';
 
@@ -29,6 +31,25 @@ interface RecommendationResult {
   whyWatch: string;
 }
 
+const GENRE_OPTIONS = [
+  'Romance',
+  'Drama',
+  'Sci-Fi',
+  'Thriller',
+  'Mystery',
+  'Crime',
+  'Action',
+  'Comedy',
+  'Horror',
+  'Fantasy',
+  'Adventure',
+  'Animation',
+  'Psychological',
+  'Historical',
+  'Documentary',
+  'Slice of Life',
+];
+
 const MOOD_OPTIONS = [
   'Contemplative & Atmospheric',
   'High Paranoia & Mind-Bending',
@@ -36,24 +57,29 @@ const MOOD_OPTIONS = [
   'Sharp & Intellectually Rigorous',
   'Visually Stunning Neo-Noir',
   'Comforting Slice-of-Life',
+  'Dark & Gritty',
+  'Intense & Thrilling',
 ];
 
 export function AiConciergeModal() {
   const { isOpen, closeConcierge } = useAiConcierge();
+  const router = useRouter();
 
   const [mood, setMood] = useState('Contemplative & Atmospheric');
-  const [favoriteFilms, setFavoriteFilms] = useState('Drive My Car, Severance, Past Lives');
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(['Drama']);
+  const [favoriteFilms, setFavoriteFilms] = useState('');
   const [mediaType, setMediaType] = useState('Any');
-  const [email, setEmail] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [subscriptionSuccess, setSubscriptionSuccess] = useState(false);
-  const [subscriptionMessage, setSubscriptionMessage] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [curatorNote, setCuratorNote] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<RecommendationResult[] | null>(null);
   const [existingReviews, setExistingReviews] = useState<Review[]>([]);
+
+  // Optional newsletter signup state (non-blocking)
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
 
   // Fetch reviews for matching recommendations to existing review pages
   useEffect(() => {
@@ -96,6 +122,14 @@ export function AiConciergeModal() {
     }
   }, [isOpen]);
 
+  const toggleGenre = (genre: string) => {
+    setSelectedGenres((prev) =>
+      prev.includes(genre)
+        ? prev.filter((g) => g !== genre)
+        : [...prev, genre]
+    );
+  };
+
   const findMatchingReview = useCallback(
     (recTitle: string): Review | undefined => {
       if (!recTitle || existingReviews.length === 0) return undefined;
@@ -121,61 +155,24 @@ export function AiConciergeModal() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setEmailError(null);
     setApiError(null);
-
-    const trimmedEmail = email.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!trimmedEmail) {
-      setEmailError('Please enter your email to subscribe and unlock your recommendations.');
-      return;
-    }
-
-    if (!emailRegex.test(trimmedEmail)) {
-      setEmailError('Please enter a valid email address.');
-      return;
-    }
-
     setLoading(true);
     setRecommendations(null);
 
     try {
-      // 1. Subscribe user to the newsletter dispatch (no duplicate if already subscribed)
-      try {
-        const subRes = await fetch('/api/newsletter/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: trimmedEmail,
-            preference: 'editors-recommendation',
-          }),
-        });
-        const subData = await subRes.json();
-        const confirmMsg =
-          subData.message || `You're now subscribed with ${trimmedEmail}!`;
-        setSubscriptionMessage(confirmMsg);
-        setSubscriptionSuccess(true);
-      } catch {
-        // Graceful handling for subscription
-        const fallbackMsg = `Welcome to The Abstract Dispatch! Subscribed with ${trimmedEmail}.`;
-        setSubscriptionMessage(fallbackMsg);
-        setSubscriptionSuccess(true);
-      }
-
-      // 2. Fetch AI Recommendations
       const response = await fetch('/api/recommend-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mood,
-          favoriteFilms,
+          genres: selectedGenres,
+          favoriteFilms: favoriteFilms.trim(),
           mediaType,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Our AI Curator is currently unavailable. Please try again shortly.');
+        throw new Error('Our recommendation curator is currently updating. Please try again.');
       }
 
       const data = await response.json();
@@ -189,11 +186,43 @@ export function AiConciergeModal() {
         throw new Error('No recommendations could be generated for these criteria.');
       }
     } catch (err: any) {
-      console.error('AI Concierge error:', err);
+      console.error('Recommendation error:', err);
       setApiError(err.message || 'Failed to generate recommendations. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNewsletterSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterEmail.trim()) return;
+
+    setNewsletterLoading(true);
+    try {
+      await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newsletterEmail.trim().toLowerCase(),
+          preference: 'editors-recommendation',
+        }),
+      });
+      setNewsletterSubscribed(true);
+    } catch {
+      setNewsletterSubscribed(true);
+    } finally {
+      setNewsletterLoading(false);
+    }
+  };
+
+  const handleViewFullResults = () => {
+    const params = new URLSearchParams();
+    if (mediaType && mediaType !== 'Any') params.set('type', mediaType);
+    if (selectedGenres.length > 0) params.set('genre', selectedGenres[0]);
+    if (mood) params.set('mood', mood);
+
+    closeConcierge();
+    router.push(`/recommends?${params.toString()}`);
   };
 
   const handleReset = () => {
@@ -214,7 +243,7 @@ export function AiConciergeModal() {
       }}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="ai-concierge-title"
+      aria-labelledby="discovery-modal-title"
     >
       <div
         className="bg-white border border-gray-200/90 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh] text-left animate-in zoom-in-95 duration-200"
@@ -224,23 +253,23 @@ export function AiConciergeModal() {
         <div className="p-6 bg-white border-b border-gray-100 flex items-center justify-between">
           <div className="space-y-1">
             <div className="inline-flex items-center space-x-1.5 bg-blue-50 text-[#008CFF] text-[10px] font-mono font-bold px-2.5 py-1 rounded-md uppercase tracking-wider border border-blue-100">
-              <Sparkles className="w-3.5 h-3.5 text-[#008CFF]" />
-              <span>EDITOR&apos;S RECOMMENDATION</span>
+              <Compass className="w-3.5 h-3.5 text-[#008CFF]" />
+              <span>THE ABSTRACT TAKE CURATOR</span>
             </div>
             <h2
-              id="ai-concierge-title"
+              id="discovery-modal-title"
               className="font-serif font-black text-2xl sm:text-3xl text-[#111111]"
             >
               What Should I Watch Next?
             </h2>
             <p className="text-xs font-news text-gray-500 font-medium">
-              Personalized recommendations in the editorial voice of The Abstract Take.
+              Instant personalized recommendations curated strictly on artistic caliber and storytelling rigor.
             </p>
           </div>
           <button
             onClick={closeConcierge}
             className="p-2 border border-gray-200 rounded-xl bg-white text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
-            aria-label="Close AI Concierge"
+            aria-label="Close Discovery Dialog"
           >
             <X className="w-5 h-5" />
           </button>
@@ -253,10 +282,60 @@ export function AiConciergeModal() {
               onSubmit={handleGenerate}
               className="space-y-5 bg-white p-6 border border-gray-200/90 rounded-2xl shadow-sm"
             >
-              {/* Mood selector */}
+              {/* 1. Format preference */}
+              <div>
+                <label
+                  htmlFor="discovery-media-type"
+                  className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-1"
+                >
+                  1. Format Preference:
+                </label>
+                <select
+                  id="discovery-media-type"
+                  value={mediaType}
+                  onChange={(e) => setMediaType(e.target.value)}
+                  className="w-full bg-gray-50/70 font-mono text-xs font-bold px-3.5 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-[#008CFF] focus:bg-white transition-all cursor-pointer text-gray-900"
+                >
+                  <option value="Any">Any Format (Movies, Series & Anime)</option>
+                  <option value="Movie">Feature Movies</option>
+                  <option value="Series">TV Series</option>
+                  <option value="Anime">Anime</option>
+                  <option value="Documentary">Documentaries</option>
+                  <option value="Mini-Series">Mini-Series</option>
+                  <option value="Special">Specials & Standalone</option>
+                </select>
+              </div>
+
+              {/* 2. Genre selector */}
               <div>
                 <label className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-2">
-                  What&apos;s your current mood or desired atmosphere?
+                  2. Select Genres / Themes:
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {GENRE_OPTIONS.map((g) => {
+                    const active = selectedGenres.includes(g);
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => toggleGenre(g)}
+                        className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
+                          active
+                            ? 'bg-[#008CFF] text-white shadow-2xs'
+                            : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Mood selector */}
+              <div>
+                <label className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-2">
+                  3. Viewing Mood & Atmosphere:
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {MOOD_OPTIONS.map((m) => (
@@ -266,7 +345,7 @@ export function AiConciergeModal() {
                       onClick={() => setMood(m)}
                       className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
                         mood === m
-                          ? 'bg-[#008CFF] text-white shadow-2xs'
+                          ? 'bg-[#111111] text-white shadow-2xs'
                           : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
                       }`}
                     >
@@ -276,80 +355,22 @@ export function AiConciergeModal() {
                 </div>
               </div>
 
-              {/* Favorite recent titles */}
+              {/* 4. Favorite recent titles (optional) */}
               <div>
                 <label
-                  htmlFor="ai-favorite-films"
+                  htmlFor="discovery-favorite-films"
                   className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-1"
                 >
-                  Name 1–3 movies, series, or anime you loved:
+                  4. Reference Favorites (Optional):
                 </label>
                 <input
-                  id="ai-favorite-films"
+                  id="discovery-favorite-films"
                   type="text"
                   value={favoriteFilms}
                   onChange={(e) => setFavoriteFilms(e.target.value)}
-                  placeholder="e.g. Past Lives, Severance, Perfect Blue..."
+                  placeholder="e.g. Past Lives, Severance, Drive My Car, Perfect Blue..."
                   className="w-full bg-gray-50/70 font-mono text-xs px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-[#008CFF] focus:bg-white transition-all text-gray-900"
                 />
-              </div>
-
-              {/* Format preference */}
-              <div>
-                <label
-                  htmlFor="ai-media-type"
-                  className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-1"
-                >
-                  Format Preference:
-                </label>
-                <select
-                  id="ai-media-type"
-                  value={mediaType}
-                  onChange={(e) => setMediaType(e.target.value)}
-                  className="w-full bg-gray-50/70 font-mono text-xs font-bold px-3.5 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-[#008CFF] focus:bg-white transition-all cursor-pointer text-gray-900"
-                >
-                  <option value="Any">Any Format (Movies, Series & Anime)</option>
-                  <option value="Movie">Feature Movie</option>
-                  <option value="Series">TV Series / Mini-Series</option>
-                  <option value="Anime">Anime</option>
-                  <option value="Documentary">Documentary</option>
-                </select>
-              </div>
-
-              {/* Email Subscription Requirement */}
-              <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 space-y-2">
-                <label
-                  htmlFor="ai-concierge-email"
-                  className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-800 flex items-center justify-between"
-                >
-                  <span className="flex items-center space-x-1.5">
-                    <Mail className="w-3.5 h-3.5 text-[#008CFF]" />
-                    <span>Your Email (Subscribe & Receive Recommendations) *</span>
-                  </span>
-                  {subscriptionSuccess && (
-                    <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 font-bold">
-                      <CheckCircle2 className="w-3 h-3" /> Subscribed
-                    </span>
-                  )}
-                </label>
-                <input
-                  id="ai-concierge-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (emailError) setEmailError(null);
-                  }}
-                  placeholder="Enter your email to subscribe (e.g. alex@example.com)..."
-                  className="w-full bg-white font-sans text-xs px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-[#008CFF] transition-all shadow-2xs text-gray-900"
-                />
-                {emailError && (
-                  <p className="text-xs text-rose-600 font-mono font-semibold">{emailError}</p>
-                )}
-                <p className="text-[11px] font-news text-gray-500">
-                  Subscribe to get editorial dispatches, weekly watchlists, and unlock your personalized recommendations.
-                </p>
               </div>
 
               {/* Error Banner */}
@@ -357,7 +378,7 @@ export function AiConciergeModal() {
                 <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3 text-rose-900 text-xs font-mono">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold block">Recommendation Generation Notice</span>
+                    <span className="font-bold block">Recommendation Notice</span>
                     <span>{apiError}</span>
                   </div>
                 </div>
@@ -371,35 +392,18 @@ export function AiConciergeModal() {
                 {loading ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    <span>Subscribing & Generating Recommendations...</span>
+                    <span>Curating Your Recommendations...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Get Personal Recommendations</span>
+                    <span>Get Personalized Watch Recommendations</span>
                   </>
                 )}
               </button>
             </form>
           ) : (
             <div className="space-y-6">
-              {/* Subscription Success Message Banner */}
-              {subscriptionSuccess && (
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-start space-x-3.5 text-emerald-950 shadow-2xs">
-                  <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-0.5">
-                    <div className="font-mono font-bold text-xs uppercase tracking-wider text-emerald-800">
-                      Subscription Confirmed!
-                    </div>
-                    <p className="text-xs font-news text-emerald-900 leading-relaxed font-medium">
-                      {subscriptionMessage ||
-                        `Welcome to The Abstract Dispatch. You're now subscribed with ${email}.`}{' '}
-                      Your personal recommendations are unlocked below:
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Curator Note */}
               {curatorNote && (
                 <div className="bg-blue-50/70 border border-blue-100 p-4 rounded-2xl flex items-start space-x-3">
@@ -439,7 +443,15 @@ export function AiConciergeModal() {
                           </p>
                         </div>
 
-                        <AbstractScoreBadge score={score} size="sm" showLabel={false} />
+                        <div className="flex items-center space-x-2">
+                          {matchingReview && (
+                            <BookmarkButton
+                              reviewId={matchingReview.id}
+                              variant="icon"
+                            />
+                          )}
+                          <AbstractScoreBadge score={score} size="sm" showLabel={false} />
+                        </div>
                       </div>
 
                       <p className="text-xs font-news text-gray-700 leading-relaxed">
@@ -455,14 +467,17 @@ export function AiConciergeModal() {
 
                       {/* Internal review link if matching review exists in database */}
                       {matchingReview ? (
-                        <div className="pt-2 flex items-center justify-end">
+                        <div className="pt-2 flex items-center justify-between">
+                          <span className="text-[11px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">
+                            Reviewed in Archives
+                          </span>
                           <Link
                             href={`/reviews/${matchingReview.slug}`}
                             onClick={closeConcierge}
                             className="inline-flex items-center space-x-1.5 text-xs font-mono font-bold text-[#008CFF] hover:underline"
                           >
                             <Film className="w-3.5 h-3.5" />
-                            <span>Read Full Take on The Abstract Take</span>
+                            <span>Read Full Take</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
                         </div>
@@ -477,8 +492,39 @@ export function AiConciergeModal() {
                 })}
               </div>
 
+              {/* Optional Post-Results Newsletter Box */}
+              <div className="p-4 bg-gradient-to-br from-blue-50/80 to-cyan-50/60 border border-blue-100 rounded-2xl space-y-3">
+                <div className="flex items-center space-x-2 text-xs font-mono font-bold uppercase tracking-wider text-gray-800">
+                  <Mail className="w-4 h-4 text-[#008CFF]" />
+                  <span>Want recommendations like this in your inbox? (Optional)</span>
+                </div>
+                {newsletterSubscribed ? (
+                  <div className="flex items-center space-x-2 text-xs font-mono text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Subscribed to The Abstract Dispatch!</span>
+                  </div>
+                ) : (
+                  <form onSubmit={handleNewsletterSubscribe} className="flex gap-2">
+                    <input
+                      type="email"
+                      placeholder="Your email (e.g. alex@example.com)..."
+                      value={newsletterEmail}
+                      onChange={(e) => setNewsletterEmail(e.target.value)}
+                      className="flex-1 bg-white px-3.5 py-2 rounded-xl text-xs font-sans border border-gray-200 focus:outline-none focus:border-[#008CFF] text-gray-900"
+                    />
+                    <button
+                      type="submit"
+                      disabled={newsletterLoading || !newsletterEmail.trim()}
+                      className="px-4 py-2 bg-[#008CFF] hover:bg-[#0077dd] text-white rounded-xl text-xs font-mono font-bold uppercase transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                    >
+                      {newsletterLoading ? 'Subscribing...' : 'Email Me'}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               {/* Action Buttons */}
-              <div className="pt-2 flex items-center justify-between gap-3">
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={handleReset}
@@ -488,13 +534,24 @@ export function AiConciergeModal() {
                   <span>Modify Criteria</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={closeConcierge}
-                  className="px-6 py-2.5 bg-[#111111] hover:bg-gray-800 text-white rounded-xl font-sans text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                >
-                  Done
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleViewFullResults}
+                    className="px-4 py-2.5 bg-[#008CFF] hover:bg-[#0077dd] text-white rounded-xl font-mono text-xs font-bold uppercase transition-colors cursor-pointer flex items-center space-x-1.5"
+                  >
+                    <span>Explore Results Page</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeConcierge}
+                    className="px-6 py-2.5 bg-[#111111] hover:bg-gray-800 text-white rounded-xl font-sans text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             </div>
           )}

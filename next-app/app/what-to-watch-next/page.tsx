@@ -3,13 +3,14 @@ import type { Metadata } from 'next';
 import { db } from '@/lib/db';
 import { AbstractScoreBadge } from '@/components/ui/AbstractScoreBadge';
 import { CuratorAiTrigger } from '@/components/ai/CuratorAiTrigger';
-import { Sparkles, Tv, Flame, Compass } from 'lucide-react';
+import { BookmarkButton } from '@/components/bookmarks/BookmarkButton';
+import { Compass, Tv } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'What Should I Watch Next? — The Abstract Take',
   description: 'Instant, curated cinema and series recommendations based on mood, artistic vibe, and critical caliber.',
   alternates: {
-    canonical: 'https://theabstracttake.com/what-to-watch-next',
+    canonical: 'https://the-abstract-take.vercel.app/what-to-watch-next',
   },
 };
 
@@ -35,7 +36,7 @@ export default async function WhatToWatchNextPage() {
         <div className="pt-2">
           <CuratorAiTrigger
             variant="banner"
-            label="Open AI Recommendation Concierge"
+            label="What Should I Watch Next? (Curator Engine)"
           />
         </div>
       </header>
@@ -76,7 +77,7 @@ export default async function WhatToWatchNextPage() {
                 </h2>
 
                 <p className="font-news text-base text-gray-700 leading-relaxed italic border-l-2 border-[#008CFF] pl-3">
-                  "{item.personalCommentary}"
+                  &ldquo;{item.personalCommentary}&rdquo;
                 </p>
               </div>
 

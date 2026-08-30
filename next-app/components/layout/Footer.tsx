@@ -26,24 +26,19 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-gray-400 text-xs font-news leading-relaxed max-w-sm">
-              An independent editorial publication offering unfiltered movie, TV series, anime, and documentary critiques scored on the calibrated 1–10 Abstract Scale.
+              An independent digital publication offering unfiltered cinema, television, anime, and documentary critiques scored strictly on the calibrated 1–10 Abstract Scale.
             </p>
             <div className="pt-2">
-              <CuratorAiTrigger label="Curator AI Assistant" />
+              <CuratorAiTrigger label="What Should I Watch Next?" />
             </div>
           </div>
 
-          {/* Col 2: Navigation */}
+          {/* Col 2: Review Archives */}
           <div className="space-y-3">
             <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
-              Navigation
+              Review Archives
             </h4>
             <ul className="space-y-2 text-xs font-sans text-gray-400">
-              <li>
-                <Link href="/" className="hover:text-white transition-colors">
-                  My Take (Home)
-                </Link>
-              </li>
               <li>
                 <Link href="/reviews" className="hover:text-white transition-colors">
                   All Reviews
@@ -51,17 +46,17 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/movies" className="hover:text-white transition-colors">
-                  Movie Reviews
+                  Feature Movies
                 </Link>
               </li>
               <li>
                 <Link href="/series" className="hover:text-white transition-colors">
-                  Series Reviews
+                  Prestige Series
                 </Link>
               </li>
               <li>
                 <Link href="/anime" className="hover:text-white transition-colors">
-                  Anime Reviews
+                  Anime Archives
                 </Link>
               </li>
               <li>
@@ -69,39 +64,49 @@ export function Footer() {
                   Documentaries
                 </Link>
               </li>
-            </ul>
-          </div>
-
-          {/* Col 3: Curated Collections */}
-          <div className="space-y-3">
-            <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
-              Curated Collections
-            </h4>
-            <ul className="space-y-2 text-xs font-sans text-gray-400">
               <li>
-                <Link href="/recommends" className="hover:text-white transition-colors">
-                  The Abstract Recommends
+                <Link href="/mini-series" className="hover:text-white transition-colors">
+                  Mini-Series
                 </Link>
               </li>
               <li>
+                <Link href="/specials" className="hover:text-white transition-colors">
+                  Specials & Standalone
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Col 3: Unified Discovery & Collections */}
+          <div className="space-y-3">
+            <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
+              Discovery & Watchlists
+            </h4>
+            <ul className="space-y-2 text-xs font-sans text-gray-400">
+              <li>
                 <Link href="/what-to-watch-next" className="hover:text-white transition-colors">
-                  What to Watch Next
+                  What Should I Watch Next?
+                </Link>
+              </li>
+              <li>
+                <Link href="/recommends" className="hover:text-white transition-colors">
+                  Curated Collections
                 </Link>
               </li>
               <li>
                 <Link href="/reviews?minScore=9" className="hover:text-white transition-colors">
-                  Signature Masterpieces
+                  Signature Masterpieces (9–10)
                 </Link>
               </li>
               <li>
                 <Link href="/search" className="hover:text-white transition-colors">
-                  Search Archives
+                  Search Archives (⌘K)
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Col 4: About & Contact */}
+          {/* Col 4: Publication Ethos */}
           <div className="space-y-3">
             <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
               Publication
@@ -120,7 +125,7 @@ export function Footer() {
               <li>
                 <Link href="/admin" className="hover:text-white transition-colors inline-flex items-center space-x-1">
                   <Settings className="w-3 h-3 text-[#008CFF]" />
-                  <span>Editorial Studio</span>
+                  <span>Editorial Studio (Admin)</span>
                 </Link>
               </li>
             </ul>
