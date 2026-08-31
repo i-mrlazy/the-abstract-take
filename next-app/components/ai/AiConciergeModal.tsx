@@ -218,8 +218,9 @@ export function AiConciergeModal() {
   const handleViewFullResults = () => {
     const params = new URLSearchParams();
     if (mediaType && mediaType !== 'Any') params.set('type', mediaType);
-    if (selectedGenres.length > 0) params.set('genre', selectedGenres[0]);
+    if (selectedGenres.length > 0) params.set('genre', selectedGenres.join(','));
     if (mood) params.set('mood', mood);
+    if (favoriteFilms.trim()) params.set('q', favoriteFilms.trim());
 
     closeConcierge();
     router.push(`/recommends?${params.toString()}`);

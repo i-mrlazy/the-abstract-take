@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import type { Review, RecommendationList } from '@/types';
 import { normalizeScore } from '@/lib/utils/rating';
+import { normalizeMediaType, isMediaTypeMatch, getDisplayMediaType, CanonicalMediaType } from '@/lib/utils/mediaType';
 
 export interface DiscoveryCriteria {
   mediaType?: string;
@@ -32,116 +33,140 @@ export interface RecommendationEngineResult {
   reviewedMatches: MatchedReviewPick[];
   collectionMatches: RecommendationList[];
   criteria: DiscoveryCriteria;
+  canonicalType: CanonicalMediaType;
 }
 
 /**
  * Searches and prioritizes reviews from the database matching user criteria.
+ * Enforces strict Media Type hard-filtering as Level 1 constraint.
  */
 export async function matchReviewsByCriteria(
   criteria: DiscoveryCriteria
 ): Promise<RecommendationEngineResult> {
-  const reviews = await db.getReviews();
+  const allReviews = await db.getReviews();
   const allLists = await db.getRecommendationLists();
 
-  const selectedType = criteria.mediaType && criteria.mediaType !== 'Any' ? criteria.mediaType.toLowerCase() : '';
-  const selectedGenres = criteria.genres || (criteria.genre ? [criteria.genre] : []);
-  const selectedMood = (criteria.mood || '').toLowerCase();
+  const targetType = normalizeMediaType(criteria.mediaType);
+  const selectedGenres = (criteria.genres && criteria.genres.length > 0)
+    ? criteria.genres
+    : (criteria.genre ? [criteria.genre] : []);
+  const selectedMood = (criteria.mood || '').trim().toLowerCase();
+  const referenceQuery = (criteria.favoriteFilms || '').trim().toLowerCase();
 
-  // Score each review based on criteria match
+  // --------------------------------------------------------------------------
+  // STEP 1: HARD FILTER BY MEDIA TYPE (Level 1 Constraint)
+  // --------------------------------------------------------------------------
+  const eligibleReviews = allReviews.filter((r) => {
+    if (r.status && r.status !== 'published') return false;
+    // Strict media type match: Non-matching media types are permanently excluded
+    return isMediaTypeMatch(r.type, targetType);
+  });
+
+  // --------------------------------------------------------------------------
+  // STEP 2: SCORE AND RANK WITHIN THE FILTERED POOL
+  // --------------------------------------------------------------------------
   const scoredReviews: MatchedReviewPick[] = [];
 
-  for (const review of reviews) {
-    if (review.status && review.status !== 'published') continue;
-
+  for (const review of eligibleReviews) {
     let score = 0;
-    const reviewType = (review.type || '').toLowerCase();
     const reviewGenres = (review.genres || []).map((g) => g.toLowerCase());
     const reviewTags = (review.tags || []).map((t) => t.toLowerCase());
     const reviewText = `${review.title} ${review.myTake || ''} ${review.verdictText || ''} ${review.synopsis || ''} ${review.longFormReview || ''}`.toLowerCase();
 
-    // 1. Format / Type Match
-    if (selectedType) {
-      if (reviewType === selectedType) {
-        score += 30;
-      } else if (selectedType === 'movie' && (reviewType === 'movies' || reviewType === 'feature')) {
-        score += 30;
-      } else if (selectedType === 'series' && (reviewType === 'mini series' || reviewType === 'tv')) {
-        score += 25;
-      } else {
-        // Mismatch on strict format filter reduces priority
-        score -= 20;
-      }
-    } else {
-      score += 10;
-    }
-
-    // 2. Genre Match
+    // 1. Exact & Multi-Genre Matching (Level 2 Constraint)
+    let matchedGenreCount = 0;
     for (const g of selectedGenres) {
       const gLower = g.toLowerCase();
-      if (reviewGenres.some((rg) => rg.includes(gLower) || gLower.includes(rg))) {
-        score += 40;
-      } else if (reviewTags.some((rt) => rt.includes(gLower) || gLower.includes(rt))) {
-        score += 30;
+      if (reviewGenres.some((rg) => rg === gLower || rg.includes(gLower) || gLower.includes(rg))) {
+        score += 50;
+        matchedGenreCount++;
+      } else if (reviewTags.some((rt) => rt === gLower || rt.includes(gLower) || gLower.includes(rt))) {
+        score += 35;
+        matchedGenreCount++;
       } else if (reviewText.includes(gLower)) {
-        score += 15;
+        score += 20;
+        matchedGenreCount++;
       }
     }
+    // Bonus for matching multiple requested genres
+    if (matchedGenreCount > 1) {
+      score += matchedGenreCount * 25;
+    }
 
-    // 3. Mood / Atmosphere Match
+    // 2. Mood & Atmosphere Relevance (Level 3 Signal)
     if (selectedMood) {
       const moodKeywords = selectedMood
         .replace(/&/g, ' ')
         .split(/\s+/)
         .filter((w) => w.length > 3);
 
+      let moodHits = 0;
       for (const kw of moodKeywords) {
         if (reviewText.includes(kw)) {
           score += 15;
+          moodHits++;
         }
         if (reviewTags.some((rt) => rt.includes(kw))) {
           score += 20;
+          moodHits++;
+        }
+      }
+      if (moodHits > 0) score += 10;
+    }
+
+    // 3. Reference Titles Taste Signal (Level 4 Signal)
+    if (referenceQuery) {
+      const refKeywords = referenceQuery
+        .replace(/,/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2);
+
+      for (const kw of refKeywords) {
+        if (reviewText.includes(kw)) {
+          score += 10;
         }
       }
     }
 
-    // 4. Quality boost from calibrated Abstract Score
+    // 4. Calibrated Abstract Score Editorial Quality Boost
     const normScore = normalizeScore(review.abstractScore);
-    if (normScore >= 9) score += 15;
-    else if (normScore >= 8) score += 10;
+    if (normScore === 10) score += 20;
+    else if (normScore === 9) score += 15;
+    else if (normScore === 8) score += 10;
     else if (normScore >= 7) score += 5;
 
-    // Reason generation
     let editorialReason = review.myTake || review.verdictText || 'Outstanding artistic vision worth experiencing.';
-    if (selectedMood && editorialReason.length > 140) {
+    if (editorialReason.length > 140) {
       editorialReason = editorialReason.slice(0, 137) + '...';
     }
 
-    if (score > 0) {
-      scoredReviews.push({
-        id: review.id,
-        slug: review.slug,
-        title: review.title,
-        type: review.type,
-        releaseYear: review.releaseYear,
-        director: review.director,
-        abstractScore: normScore,
-        posterUrl: review.posterUrl,
-        bannerUrl: review.bannerUrl,
-        summary: review.myTake || review.synopsis || review.verdictText || '',
-        editorialReason,
-        genres: review.genres || [],
-        matchScore: score,
-      });
-    }
+    scoredReviews.push({
+      id: review.id,
+      slug: review.slug,
+      title: review.title,
+      type: review.type,
+      releaseYear: review.releaseYear,
+      director: review.director,
+      abstractScore: normScore,
+      posterUrl: review.posterUrl,
+      bannerUrl: review.bannerUrl,
+      summary: review.myTake || review.synopsis || review.verdictText || '',
+      editorialReason,
+      genres: review.genres || [],
+      matchScore: score,
+    });
   }
 
-  // Sort reviews by matchScore descending
+  // Sort by match score descending
   scoredReviews.sort((a, b) => b.matchScore - a.matchScore);
 
-  // If no strict matches found, provide the highest rated reviews in the archive as fallback
+  // --------------------------------------------------------------------------
+  // STEP 3: FALLBACK WITHIN ELIGIBLE MEDIA TYPE ONLY
+  // --------------------------------------------------------------------------
+  // If no scored matches, fallback strictly selects within eligibleReviews
   const topReviews = scoredReviews.length > 0
     ? scoredReviews.slice(0, 6)
-    : reviews.slice(0, 4).map((r) => ({
+    : eligibleReviews.slice(0, 4).map((r) => ({
         id: r.id,
         slug: r.slug,
         title: r.title,
@@ -152,12 +177,17 @@ export async function matchReviewsByCriteria(
         posterUrl: r.posterUrl,
         bannerUrl: r.bannerUrl,
         summary: r.myTake || r.synopsis || r.verdictText || '',
-        editorialReason: r.myTake || r.verdictText || 'Exceptional cinematic merit.',
+        editorialReason: r.myTake || r.verdictText || 'Exceptional cinematic caliber in our archive.',
         genres: r.genres || [],
         matchScore: 10,
       }));
 
-  // Match curated collections
+  // Double validation: Ensure ZERO non-matching media types ever leak
+  const strictlyValidatedReviews = topReviews.filter((r) => isMediaTypeMatch(r.type, targetType));
+
+  // --------------------------------------------------------------------------
+  // STEP 4: CURATED COLLECTIONS MATCHING
+  // --------------------------------------------------------------------------
   const matchedLists: RecommendationList[] = [];
   for (const list of allLists) {
     const listText = `${list.title} ${list.description} ${list.category || ''} ${list.subtitle || ''}`.toLowerCase();
@@ -172,38 +202,50 @@ export async function matchReviewsByCriteria(
         if (listText.includes(kw.toLowerCase())) listScore += 15;
       }
     }
+    if (targetType !== 'any' && listText.includes(targetType)) {
+      listScore += 15;
+    }
+
     if (listScore > 0 || allLists.length <= 3) {
       matchedLists.push(list);
     }
   }
 
-  // Generate dynamic headline and context note
-  let headline = 'What Should I Watch Next?';
+  // --------------------------------------------------------------------------
+  // STEP 5: DYNAMIC HEADLINE & CONTEXT NOTE
+  // --------------------------------------------------------------------------
+  const typeDisplay = getDisplayMediaType(targetType);
+  const typePlural = targetType === 'any' ? 'Takes' : `${typeDisplay}s`;
   const genreLabel = selectedGenres.length > 0 ? selectedGenres.join(' & ') : '';
-  const typeLabel = criteria.mediaType && criteria.mediaType !== 'Any' ? `${criteria.mediaType}s` : 'Titles';
 
+  let headline = 'What Should I Watch Next?';
   if (genreLabel && selectedMood) {
-    headline = `${selectedMood.split('&')[0].trim()} ${genreLabel} ${typeLabel} Worth Watching`;
+    headline = `${selectedMood.split('&')[0].trim()} ${genreLabel} ${typePlural} Worth Watching`;
   } else if (genreLabel) {
-    headline = `${genreLabel} ${typeLabel} Worth Watching`;
+    headline = `${genreLabel} ${typePlural} Worth Watching`;
   } else if (selectedMood) {
-    headline = `${criteria.mood} ${typeLabel} You Should Experience`;
+    headline = `${criteria.mood} ${typePlural} You Should Experience`;
+  } else if (targetType !== 'any') {
+    headline = `Recommended ${typePlural} on The Abstract Take`;
   }
 
   let contextNote = 'Handpicked by The Abstract Take based on artistic caliber and storytelling rigor.';
   if (selectedMood && genreLabel) {
-    contextNote = `Based on your preference for ${selectedMood.toLowerCase()} ${genreLabel.toLowerCase()}, here are the titles The Abstract Take believes are truly worth your time.`;
+    contextNote = `Based on your preference for ${selectedMood.toLowerCase()} ${genreLabel.toLowerCase()}, here are the ${typePlural.toLowerCase()} The Abstract Take believes are truly worth your time.`;
   } else if (selectedMood) {
     contextNote = `Curated for a ${selectedMood.toLowerCase()} viewing experience, scored strictly on our signature 1–10 Abstract Scale.`;
   } else if (genreLabel) {
     contextNote = `The definitive ${genreLabel.toLowerCase()} selections from our editorial critique archives.`;
+  } else if (targetType !== 'any') {
+    contextNote = `Essential ${typePlural.toLowerCase()} scored on our official 1–10 Abstract Scale.`;
   }
 
   return {
     headline,
     contextNote,
-    reviewedMatches: topReviews,
+    reviewedMatches: strictlyValidatedReviews,
     collectionMatches: matchedLists.slice(0, 3),
     criteria,
+    canonicalType: targetType,
   };
 }

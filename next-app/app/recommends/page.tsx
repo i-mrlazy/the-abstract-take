@@ -29,15 +29,25 @@ interface RecommendsPageProps {
 
 export default async function RecommendsPage({ searchParams }: RecommendsPageProps) {
   const params = await searchParams;
-  const hasCriteria = Boolean(params.type || params.genre || params.mood || params.q);
+  const rawGenre = typeof params.genre === 'string' ? params.genre.trim() : '';
+  const parsedGenres = rawGenre
+    ? rawGenre.split(',').map((g) => g.trim()).filter(Boolean)
+    : [];
 
-  // If user navigated with criteria, calculate dynamic matches
+  const rawType = typeof params.type === 'string' ? params.type.trim() : '';
+  const rawMood = typeof params.mood === 'string' ? params.mood.trim() : '';
+  const rawQ = typeof params.q === 'string' ? params.q.trim() : '';
+
+  const hasCriteria = Boolean(rawType || parsedGenres.length > 0 || rawMood || rawQ);
+
+  // If user navigated with criteria, calculate dynamic matches with hard filtering
   const matchResult = hasCriteria
     ? await matchReviewsByCriteria({
-        mediaType: params.type,
-        genre: params.genre,
-        mood: params.mood,
-        favoriteFilms: params.q,
+        mediaType: rawType,
+        genres: parsedGenres,
+        genre: parsedGenres[0] || undefined,
+        mood: rawMood,
+        favoriteFilms: rawQ,
       })
     : null;
 
