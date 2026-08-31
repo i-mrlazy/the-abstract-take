@@ -1,5 +1,60 @@
 [
   {
+    "id": "review-1788209445117-0-the-witcher-blood-origin",
+    "slug": "the-witcher-blood-origin-2022",
+    "title": "The Witcher: Blood Origin",
+    "type": "Mini Series",
+    "status": "published",
+    "releaseYear": 2022,
+    "director": "Declan de Barra",
+    "cast": [
+      "Sophia Brown",
+      "Laurence O'Fuarain",
+      "Michelle Yeoh"
+    ],
+    "runtime": "4 eps",
+    "genres": [
+      "Fantasy",
+      "Action",
+      "Adventure"
+    ],
+    "posterUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop",
+    "bannerUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop",
+    "abstractScore": 5,
+    "myTake": "The Witcher: Blood Origin delivers brisk action and colorful lore, but suffers from rushed pacing and generic characters.",
+    "streamingPlatforms": [
+      {
+        "name": "Netflix",
+        "type": "Subscription"
+      }
+    ],
+    "pros": [
+      "Michelle Yeoh's commanding screen presence as Scían",
+      "Vibrant fantasy landscapes and fast combat sequences"
+    ],
+    "cons": [
+      "Truncated four-episode runtime prevents deep character bonds",
+      "Lacks the narrative weight and nuance of the main series"
+    ],
+    "verdictText": "A watchable diversion for fantasy enthusiasts, but a noticeable step down in depth and atmosphere.",
+    "shouldYouWatch": "For Fans",
+    "longFormReview": "Set 1,200 years before the events of The Witcher, Blood Origin attempts to chart the creation of the first prototype Witcher and the catastrophic Conjunction of the Spheres. Across its compressed four-episode span, the series moves at a breakneck sprint. Michelle Yeoh brings undeniable charisma to Scían, anchoring the action scenes with elegance and force. However, the emotional stakes feel underserved by the truncated running time, leaving secondary characters thinly sketched and lore revelations feeling hurried. While casual viewers will appreciate the momentum and stylized set pieces, franchise aficionados may find themselves wishing for the patient storytelling that defined earlier Witcher chapters.",
+    "spoilerFreeTake": "An entertaining yet hurried fantasy side quest best suited for dedicated franchise followers.",
+    "category": "Series",
+    "tags": [
+      "Mini Series",
+      "Fantasy",
+      "The Abstract Take"
+    ],
+    "viewsCount": 0,
+    "likesCount": 0,
+    "commentsCount": 0,
+    "readingTimeMinutes": 3,
+    "source": "google_sheets_automation",
+    "automationRowId": "sheet-row-2-thewitcherbloodorigin",
+    "publishDate": "2026-08-31"
+  },
+  {
     "id": "review-1787935205673",
     "slug": "severance-season-2",
     "title": "Severance (Season 2)",

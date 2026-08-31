@@ -370,6 +370,36 @@ export class ReviewRepository {
     return this.createReview(duplicated);
   }
 
+  async publishReview(id: string): Promise<Review | null> {
+    const review = await this.getById(id);
+    if (!review) return null;
+    review.status = 'published';
+    review.publishDate = review.publishDate || new Date().toISOString().split('T')[0];
+    review.updatedDate = new Date().toISOString().split('T')[0];
+    return this.updateReview(review);
+  }
+
+  async unpublishReview(id: string): Promise<Review | null> {
+    const review = await this.getById(id);
+    if (!review) return null;
+    review.status = 'draft';
+    review.updatedDate = new Date().toISOString().split('T')[0];
+    return this.updateReview(review);
+  }
+
+  // Canonical Alias Methods for Database Layer
+  async getReviews(includeDrafts = false): Promise<Review[]> {
+    return this.getAll(includeDrafts);
+  }
+
+  async getReviewById(id: string): Promise<Review | null> {
+    return this.getById(id);
+  }
+
+  async getReviewBySlug(slug: string): Promise<Review | null> {
+    return this.getBySlug(slug);
+  }
+
   async getByType(type: MediaType | string, limit = 12, offset = 0) {
     return this.getPaginated({ type, limit, offset });
   }

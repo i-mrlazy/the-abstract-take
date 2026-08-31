@@ -19,6 +19,8 @@ export const db = {
   searchReviews: (query: string, filters = {}) => reviewRepository.search(query, filters),
   createReview: (review: any) => reviewRepository.createReview(review),
   updateReview: (review: any) => reviewRepository.updateReview(review),
+  publishReview: (id: string) => reviewRepository.publishReview(id),
+  unpublishReview: (id: string) => reviewRepository.unpublishReview(id),
   deleteReview: (id: string) => reviewRepository.deleteReview(id),
   duplicateReview: (id: string) => reviewRepository.duplicateReview(id),
   findReviewByAutomationKey: (key: any) => reviewRepository.findReviewByAutomationKey(key),

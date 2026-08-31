@@ -4,7 +4,7 @@ import { validateAutomationSecret, getAuthenticatedAdmin } from '@/lib/auth';
 import { slugify } from '@/lib/utils/slug';
 import { normalizeScore } from '@/lib/utils/rating';
 import { resolveReviewArtwork } from '@/lib/editorial/reviewArtwork';
-import { Review, MediaType, WatchVerdict } from '@/types';
+import { Review, MediaType } from '@/types';
 
 function parseList(input?: string | string[]): string[] {
   if (!input) return [];
@@ -118,14 +118,11 @@ export async function POST(req: NextRequest) {
       const baseSlug = item.slug ? slugify(item.slug) : `${slugify(rawTitle)}-${releaseYear}`;
 
       // Duplicate Check:
-      // 1. Normalized title + year match
-      // 2. Exact slug match
-      // 3. automationRowId match (if provided)
+      // Match strictly on normalized title + year match OR exact slug match
       const existingMatch = allExistingReviews.find(
         (r) =>
           (r.title.toLowerCase().trim() === rawTitle.toLowerCase().trim() && r.releaseYear === releaseYear) ||
-          r.slug === baseSlug ||
-          (item.rowId && r.automationRowId === String(item.rowId))
+          r.slug === baseSlug
       );
 
       if (existingMatch && duplicateMode === 'skip') {
@@ -268,15 +265,23 @@ export async function POST(req: NextRequest) {
           ? await reviewRepository.updateReview(newDraftReview)
           : await reviewRepository.createReview(newDraftReview);
 
+        // ATOMIC POST-WRITE READ-BACK VERIFICATION
+        const verified = await reviewRepository.getById(saved.id);
+        if (!verified || !verified.id || !verified.slug) {
+          throw new Error(`Database read-back verification failed: review ${saved.id} was not found in storage after write.`);
+        }
+
         // Update local list so subsequent items in the batch detect duplicates accurately
-        allExistingReviews.push(saved);
+        allExistingReviews.push(verified);
 
         importedResults.push({
-          id: saved.id,
-          slug: saved.slug,
-          title: saved.title,
-          status: saved.status,
-          score: saved.abstractScore,
+          id: verified.id,
+          slug: verified.slug,
+          title: verified.title,
+          releaseYear: verified.releaseYear,
+          type: verified.type,
+          status: verified.status,
+          score: verified.abstractScore,
           isUpdate: Boolean(existingMatch && duplicateMode === 'update'),
           rowId: item.rowId,
         });
@@ -298,7 +303,9 @@ export async function POST(req: NextRequest) {
       skippedCount: skippedDuplicates.length,
       failedCount: failedItems.length,
       imported: importedResults,
+      skipped: skippedDuplicates,
       duplicates: skippedDuplicates,
+      failed: failedItems,
       errors: failedItems,
       message: `Successfully imported ${importedResults.length} review(s) as CMS drafts. ${skippedDuplicates.length} duplicate(s) skipped.`,
     });

@@ -31,6 +31,7 @@ var CONFIG = {
     GENERATED: "Generated",
     NEEDS_REVIEW: "Needs Review",
     APPROVED: "Approved",
+    IMPORTED_TO_CMS: "Imported to CMS",
     PUBLISHED: "Published",
     REWATCH_REQUIRED: "Rewatch Required",
     GENERATION_FAILED: "Generation Failed",
@@ -43,6 +44,7 @@ var CONFIG = {
     "Generated",
     "Needs Review",
     "Approved",
+    "Imported to CMS",
     "Published",
     "Rewatch Required",
     "Generation Failed",
@@ -118,6 +120,7 @@ function normalizeWorkflowStatus(status) {
   if (cleaned === "generated" || cleaned === "aidraftready" || cleaned === "draftready") return "Generated";
   if (cleaned === "needsreview" || cleaned === "review" || cleaned === "needsrevision") return "Needs Review";
   if (cleaned === "approved") return "Approved";
+  if (cleaned === "importedtocms" || cleaned === "imported" || cleaned === "cmsdraft" || cleaned === "importedcms") return "Imported to CMS";
   if (cleaned === "published") return "Published";
   if (cleaned === "rewatchrequired" || cleaned === "rewatch") return "Rewatch Required";
   if (cleaned === "generationfailed" || cleaned === "failed" || cleaned === "error") return "Generation Failed";
@@ -325,10 +328,23 @@ function getColumnMap(sheet) {
 // ==============================================================================
 function getScriptConfig() {
   var props = PropertiesService.getScriptProperties();
+  var rawSecret = (
+    props.getProperty("AUTOMATION_SECRET") ||
+    props.getProperty("GOOGLE_SHEETS_AUTOMATION_SECRET") ||
+    props.getProperty("API_SECRET") ||
+    ""
+  ).trim();
+
+  var rawApiBase = (
+    props.getProperty("API_BASE_URL") ||
+    props.getProperty("BACKEND_URL") ||
+    "https://the-abstract-take.vercel.app"
+  ).trim().replace(/\/$/, "");
+
   return {
-    geminiApiKey: props.getProperty("GEMINI_API_KEY") || "",
-    apiBaseUrl: (props.getProperty("API_BASE_URL") || "https://the-abstract-take.vercel.app").replace(/\/$/, ""),
-    automationSecret: props.getProperty("AUTOMATION_SECRET") || "",
+    geminiApiKey: (props.getProperty("GEMINI_API_KEY") || "").trim(),
+    apiBaseUrl: rawApiBase,
+    automationSecret: rawSecret,
   };
 }
 
@@ -353,7 +369,7 @@ function promptForBackendConfig() {
   var ui = SpreadsheetApp.getUi();
   var resUrl = ui.prompt(
     "🌐 Backend API Base URL",
-    "Enter backend URL (e.g. https://the-abstract-take.vercel.app or http://localhost:3000):",
+    "Enter backend URL (default: https://the-abstract-take.vercel.app):",
     ui.ButtonSet.OK_CANCEL
   );
 
@@ -364,7 +380,7 @@ function promptForBackendConfig() {
 
   var resSecret = ui.prompt(
     "🔒 Automation Secret Key",
-    "Enter the AUTOMATION_SECRET matching your backend environment variable:",
+    "Enter the AUTOMATION_SECRET (must match the AUTOMATION_SECRET environment variable on Vercel/Next.js):",
     ui.ButtonSet.OK_CANCEL
   );
 
@@ -1119,6 +1135,19 @@ function importApprovedToCms() {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
 
+  // 1. Safety Check: Verify automation secret is configured before making network calls
+  if (!conf.automationSecret) {
+    SpreadsheetApp.getUi().alert(
+      "⚠️ Missing Automation Secret Key\n\n" +
+      "Google Apps Script requires an AUTOMATION_SECRET to authenticate CMS draft imports.\n\n" +
+      "To configure:\n" +
+      "1. Click: 🎬 The Abstract Take → ⚙️ Settings & Configuration → 🌐 Configure Backend Connection\n" +
+      "2. Enter the AUTOMATION_SECRET matching your backend environment variable.\n\n" +
+      "Alternatively, set 'AUTOMATION_SECRET' in Project Settings → Script Properties."
+    );
+    return;
+  }
+
   var maxCol = Math.max(sheet.getLastColumn(), 34);
   var rows = sheet.getRange(2, 1, lastRow - 1, maxCol).getValues();
   var approvedPayloads = [];
@@ -1128,7 +1157,7 @@ function importApprovedToCms() {
   var importStatusCol = cols.CMS_IMPORT_STATUS;
   var jsonCol = cols.FINAL_APPROVED_JSON || cols.GENERATED_JSON || 8;
 
-  for (var i = 0; i < rows.length; i++) {
+    for (var i = 0; i < rows.length; i++) {
     var rawStatus = String(rows[i][statusCol - 1] || "").trim();
     var edStatus = normalizeWorkflowStatus(rawStatus);
     var importStatus = importStatusCol ? String(rows[i][importStatusCol - 1] || "").trim() : "";
@@ -1137,10 +1166,13 @@ function importApprovedToCms() {
     if (edStatus === CONFIG.STATUS.APPROVED && importStatus !== "IMPORTED_TO_CMS" && approvedJson) {
       try {
         var parsed = JSON.parse(approvedJson);
-        parsed.rowId = "sheet-row-" + (i + 2);
+        var rowSlug = (parsed.title || "item").toLowerCase().replace(/[^a-z0-9]/g, "");
+        parsed.rowId = "sheet-row-" + (i + 2) + "-" + rowSlug;
         approvedPayloads.push(parsed);
         rowNumbers.push(i + 2);
-      } catch (e) {}
+      } catch (e) {
+        Logger.log("Failed to parse JSON for row " + (i + 2) + ": " + e.toString());
+      }
     }
   }
 
@@ -1156,7 +1188,7 @@ function importApprovedToCms() {
     var options = {
       method: "post",
       headers: {
-        "X-Automation-Secret": conf.automationSecret,
+        "x-automation-secret": conf.automationSecret,
         "Content-Type": "application/json",
       },
       payload: JSON.stringify({ reviews: approvedPayloads, duplicateMode: "skip" }),
@@ -1168,40 +1200,131 @@ function importApprovedToCms() {
     var bodyText = res.getContentText();
 
     if (code !== 200) {
-      throw new Error("HTTP " + code + ": " + bodyText);
+      var errorDetail = bodyText;
+      try {
+        var errObj = JSON.parse(bodyText);
+        if (errObj.message) {
+          errorDetail = errObj.message;
+        }
+      } catch (e) {}
+
+      if (code === 401) {
+        throw new Error(
+          "Authentication Rejected (HTTP 401):\n" +
+          "The backend rejected the automation secret. Please verify that AUTOMATION_SECRET in Google Apps Script Settings matches the server environment variable."
+        );
+      } else if (code === 403) {
+        throw new Error("Authorization Forbidden (HTTP 403):\n" + errorDetail);
+      } else if (code === 400) {
+        throw new Error("Import Validation Failed (HTTP 400):\n" + errorDetail);
+      } else {
+        throw new Error("Server Error (HTTP " + code + "):\n" + errorDetail);
+      }
     }
 
-    var resultJson = JSON.parse(bodyText);
+    var resultJson;
+    try {
+      resultJson = JSON.parse(bodyText);
+    } catch (parseErr) {
+      throw new Error("Invalid CMS response format: " + bodyText);
+    }
+
     var now = new Date().toISOString();
+    var importedCount = 0;
+    var skippedCount = 0;
+    var failedCount = 0;
+    var importedSummary = [];
 
-    for (var j = 0; j < rowNumbers.length; j++) {
+    // Atomically match each submitted row individually against verified backend response
+    for (var j = 0; j < approvedPayloads.length; j++) {
+      var payload = approvedPayloads[j];
       var rNum = rowNumbers[j];
-      // Mark as Published or keep status
-      sheet.getRange(rNum, statusCol).setValue(CONFIG.STATUS.PUBLISHED);
+      var matchedImport = null;
 
-      if (cols.CMS_IMPORT_STATUS) {
-        sheet.getRange(rNum, cols.CMS_IMPORT_STATUS).setValue("IMPORTED_TO_CMS");
+      if (Array.isArray(resultJson.imported)) {
+        for (var k = 0; k < resultJson.imported.length; k++) {
+          var item = resultJson.imported[k];
+          if (!item || !item.id || !item.slug) continue;
+
+          var matchesRowId = Boolean(item.rowId && item.rowId === payload.rowId);
+          var matchesTitle = Boolean(
+            item.title && payload.title &&
+            String(item.title).toLowerCase().trim() === String(payload.title).toLowerCase().trim() &&
+            (payload.releaseYear ? Number(item.releaseYear) === Number(payload.releaseYear) : true)
+          );
+
+          if (matchesRowId || matchesTitle) {
+            matchedImport = item;
+            break;
+          }
+        }
       }
-      if (cols.WEBSITE_PUB_STATUS) {
-        sheet.getRange(rNum, cols.WEBSITE_PUB_STATUS).setValue("DRAFT");
-      }
-      if (cols.PUB_TIME) {
-        sheet.getRange(rNum, cols.PUB_TIME).setValue(now);
-      }
-      if (cols.LAST_UPDATED) {
-        sheet.getRange(rNum, cols.LAST_UPDATED).setValue(now);
+
+      if (matchedImport && matchedImport.id && matchedImport.slug) {
+        // Confirmed verified persistence in CMS/database as DRAFT
+        sheet.getRange(rNum, statusCol).setValue(CONFIG.STATUS.IMPORTED_TO_CMS);
+
+        if (cols.CMS_IMPORT_STATUS) {
+          sheet.getRange(rNum, cols.CMS_IMPORT_STATUS).setValue("IMPORTED_TO_CMS");
+        }
+        if (cols.WEBSITE_PUB_STATUS) {
+          sheet.getRange(rNum, cols.WEBSITE_PUB_STATUS).setValue("DRAFT");
+        }
+        if (cols.INTERNAL_ID) {
+          sheet.getRange(rNum, cols.INTERNAL_ID).setValue(matchedImport.id);
+        }
+        if (cols.PUBLISHED_URL) {
+          sheet.getRange(rNum, cols.PUBLISHED_URL).setValue(conf.apiBaseUrl + "/reviews/" + matchedImport.slug);
+        }
+        if (cols.LAST_UPDATED) {
+          sheet.getRange(rNum, cols.LAST_UPDATED).setValue(now);
+        }
+
+        importedCount++;
+        importedSummary.push("• " + (matchedImport.title || payload.title) + " (CMS ID: " + matchedImport.id + ", slug: " + matchedImport.slug + ")");
+      } else {
+        // Check if skipped as duplicate or failed: LEAVE ROW IN 'Approved' STATUS
+        var isDuplicate = false;
+        if (Array.isArray(resultJson.skipped) || Array.isArray(resultJson.duplicates)) {
+          var skipList = resultJson.skipped || resultJson.duplicates;
+          isDuplicate = skipList.some(function(d) {
+            return (d.rowId && d.rowId === payload.rowId) || (d.title && payload.title && d.title.toLowerCase().trim() === payload.title.toLowerCase().trim());
+          });
+        }
+
+        if (isDuplicate) {
+          skippedCount++;
+          Logger.log("Row " + rNum + " ('" + payload.title + "') skipped as duplicate in CMS. Remains 'Approved'.");
+        } else {
+          failedCount++;
+          Logger.log("Row " + rNum + " ('" + payload.title + "') failed CMS import. Remains 'Approved'.");
+        }
       }
     }
 
-    SpreadsheetApp.getUi().alert(
-      "✅ CMS Draft Import Succeeded!\n\n" +
-      "Imported to CMS: " + resultJson.importedCount + " (Saved as DRAFTS)\n" +
-      "Duplicates Skipped: " + resultJson.skippedCount + "\n\n" +
-      "Status set to: Published\n" +
-      "The founder can now review and publish these takes directly in the CMS Editor."
-    );
+    SpreadsheetApp.flush();
+
+    if (importedCount > 0) {
+      SpreadsheetApp.getUi().alert(
+        "✅ CMS Draft Import Succeeded!\n\n" +
+        "Imported to CMS: " + importedCount + " (Status set to: 'Imported to CMS')\n" +
+        (skippedCount > 0 ? "Duplicates Skipped: " + skippedCount + " (Remain: 'Approved')\n" : "") +
+        (failedCount > 0 ? "Failed: " + failedCount + " (Remain: 'Approved')\n" : "") + "\n" +
+        "Verified Draft Records:\n" + importedSummary.join("\n") + "\n\n" +
+        "The reviews are now securely stored as DRAFTS in the CMS.\n" +
+        "Open the CMS Editorial Studio (/admin/reviews) to review and publish to the live website."
+      );
+    } else {
+      SpreadsheetApp.getUi().alert(
+        "⚠️ No Reviews Were Imported:\n\n" +
+        (skippedCount > 0 ? "• " + skippedCount + " duplicate review(s) already exist in CMS.\n" : "") +
+        (failedCount > 0 ? "• " + failedCount + " review(s) failed persistence validation.\n" : "") +
+        "\nAll submitted rows remain safely in 'Approved' status."
+      );
+    }
   } catch (err) {
-    SpreadsheetApp.getUi().alert("❌ CMS Import Failed:\n\n" + err.toString());
+    // Failure Safety: Rows remain in "Approved" status if import fails
+    SpreadsheetApp.getUi().alert("❌ CMS Import Failed:\n\n" + err.message);
   }
 }
 
@@ -1261,6 +1384,7 @@ function showPipelineStatus() {
     generated: 0,
     needsReview: 0,
     approved: 0,
+    importedToCms: 0,
     published: 0,
     rewatch: 0,
     failed: 0,
@@ -1278,6 +1402,7 @@ function showPipelineStatus() {
     else if (st === CONFIG.STATUS.GENERATED) counts.generated++;
     else if (st === CONFIG.STATUS.NEEDS_REVIEW) counts.needsReview++;
     else if (st === CONFIG.STATUS.APPROVED) counts.approved++;
+    else if (st === CONFIG.STATUS.IMPORTED_TO_CMS) counts.importedToCms++;
     else if (st === CONFIG.STATUS.PUBLISHED) counts.published++;
     else if (st === CONFIG.STATUS.REWATCH_REQUIRED) counts.rewatch++;
     else if (st === CONFIG.STATUS.GENERATION_FAILED) counts.failed++;
@@ -1293,6 +1418,7 @@ function showPipelineStatus() {
     "• Generated: " + counts.generated + "\n" +
     "• Needs Review: " + counts.needsReview + "\n" +
     "• Approved: " + counts.approved + "\n" +
+    "• Imported to CMS: " + counts.importedToCms + "\n" +
     "• Published: " + counts.published + "\n" +
     "• Rewatch Required: " + counts.rewatch + "\n" +
     "• Generation Failed: " + counts.failed
@@ -1359,11 +1485,23 @@ function setupSheetTemplate() {
 
 function testBackendConnection() {
   var conf = getScriptConfig();
+
+  if (!conf.automationSecret) {
+    SpreadsheetApp.getUi().alert(
+      "⚠️ Missing Automation Secret Key\n\n" +
+      "Google Apps Script requires an AUTOMATION_SECRET to authenticate with the backend.\n\n" +
+      "To configure:\n" +
+      "1. Click: 🎬 The Abstract Take → ⚙️ Settings & Configuration → 🌐 Configure Backend Connection\n" +
+      "2. Enter your AUTOMATION_SECRET."
+    );
+    return;
+  }
+
   var url = conf.apiBaseUrl + "/api/automation/health";
   var options = {
     method: "get",
     headers: {
-      "X-Automation-Secret": conf.automationSecret,
+      "x-automation-secret": conf.automationSecret,
       "Content-Type": "application/json",
     },
     muteHttpExceptions: true,
@@ -1376,15 +1514,21 @@ function testBackendConnection() {
 
     if (code === 200) {
       SpreadsheetApp.getUi().alert(
-        "✅ Backend Connection Successful!\n\n" +
+        "✅ Backend Connection & Authentication Successful!\n\n" +
         "URL: " + conf.apiBaseUrl + "\n" +
-        "Response: " + body
+        "Status: Authenticated (HTTP 200)\n\n" +
+        "Ready to import approved reviews to CMS Drafts."
+      );
+    } else if (code === 401) {
+      SpreadsheetApp.getUi().alert(
+        "❌ Authentication Failed (HTTP 401)\n\n" +
+        "The backend rejected the automation secret.\n\n" +
+        "Ensure AUTOMATION_SECRET in Script Properties exactly matches the AUTOMATION_SECRET environment variable on Vercel."
       );
     } else {
       SpreadsheetApp.getUi().alert(
-        "⚠️ Authentication / Connection Issue (HTTP " + code + ")\n\n" +
-        "Response: " + body + "\n\n" +
-        "Check that AUTOMATION_SECRET in Script Properties matches backend environment variables."
+        "⚠️ Connection Issue (HTTP " + code + ")\n\n" +
+        "Response: " + body
       );
     }
   } catch (err) {
