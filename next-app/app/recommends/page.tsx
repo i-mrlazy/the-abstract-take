@@ -6,11 +6,24 @@ import { matchReviewsByCriteria } from '@/lib/editorial/recommendationEngine';
 import { CuratorAiTrigger } from '@/components/ai/CuratorAiTrigger';
 import { AbstractScoreBadge } from '@/components/ui/AbstractScoreBadge';
 import { BookmarkButton } from '@/components/bookmarks/BookmarkButton';
-import { Compass, ArrowRight, Layers, Sparkles, Film, ArrowLeft } from 'lucide-react';
+import { NewsletterSubscribeForm } from '@/components/newsletter/NewsletterSubscribeForm';
+import {
+  Compass,
+  ArrowRight,
+  Layers,
+  Sparkles,
+  Film,
+  ArrowLeft,
+  CheckCircle2,
+  Tv,
+  Info,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'The Abstract Recommends & Discovery Engine — The Abstract Take',
-  description: 'Personalized watch recommendations, themed cinematic journeys, and definitive watchlists curated strictly on artistic merit.',
+  description:
+    'Personalized watch recommendations, themed cinematic journeys, and definitive watchlists curated strictly on artistic merit.',
   alternates: {
     canonical: 'https://the-abstract-take.vercel.app/recommends',
   },
@@ -40,7 +53,7 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
 
   const hasCriteria = Boolean(rawType || parsedGenres.length > 0 || rawMood || rawQ);
 
-  // If user navigated with criteria, calculate dynamic matches with hard filtering
+  // Calculate dynamic criteria matches
   const matchResult = hasCriteria
     ? await matchReviewsByCriteria({
         mediaType: rawType,
@@ -54,11 +67,13 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
   const allLists = await db.getRecommendationLists();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-12">
-      {/* Dynamic Recommendation Mode */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-14 text-left">
+      {/* ------------------------------------------------------------------ */}
+      {/* DYNAMIC RECOMMENDATION RESULTS VIEW                                */}
+      {/* ------------------------------------------------------------------ */}
       {hasCriteria && matchResult ? (
-        <section className="space-y-10">
-          {/* Back & Criteria Action Bar */}
+        <section className="space-y-12">
+          {/* Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200/80 pb-6">
             <Link
               href="/recommends"
@@ -68,35 +83,62 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
               <span>VIEW ALL CURATED COLLECTIONS</span>
             </Link>
 
-            <CuratorAiTrigger
-              variant="pill"
-              label="Modify Viewing Criteria"
-            />
+            <CuratorAiTrigger variant="pill" label="Modify Viewing Criteria" />
           </div>
 
-          {/* Dynamic Editorial Headline & Context */}
-          <header className="space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-[#008CFF]/10 text-[#008CFF] rounded-full text-xs font-mono font-bold uppercase tracking-wider">
-              <Compass className="w-3.5 h-3.5 text-[#008CFF]" />
-              <span>YOUR NEXT TAKE</span>
+          {/* Section 1: Taste Profile Summary Header */}
+          <div className="bg-white border border-gray-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#008CFF]/10 text-[#008CFF] rounded-full text-xs font-mono font-bold uppercase tracking-wider">
+                <Compass className="w-3.5 h-3.5" />
+                <span>YOUR TASTE PROFILE</span>
+              </div>
+              {!matchResult.hasExactMatches && (
+                <div className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-full text-[11px] font-mono">
+                  <Info className="w-3 h-3 text-amber-600" />
+                  <span>Broader Editorial Match</span>
+                </div>
+              )}
             </div>
 
-            <h1 className="font-serif font-black text-3xl sm:text-4xl md:text-5xl text-gray-950 tracking-tight">
-              {matchResult.headline}
-            </h1>
+            <div className="space-y-2">
+              <h1 className="font-serif font-black text-3xl sm:text-4xl md:text-5xl text-gray-950 tracking-tight leading-tight">
+                {matchResult.headline}
+              </h1>
+              <p className="font-news text-base sm:text-lg text-gray-600 leading-relaxed italic border-l-2 border-[#008CFF] pl-4 py-1 max-w-4xl">
+                &ldquo;{matchResult.contextNote}&rdquo;
+              </p>
+            </div>
 
-            <p className="font-news text-base sm:text-lg text-gray-600 max-w-3xl leading-relaxed italic border-l-2 border-[#008CFF] pl-4 py-1">
-              &ldquo;{matchResult.contextNote}&rdquo;
-            </p>
-          </header>
+            {/* Criteria Pills */}
+            <div className="pt-2 flex flex-wrap items-center gap-2 text-xs font-mono">
+              <span className="text-gray-400 font-bold uppercase mr-1">BECAUSE YOU SELECTED:</span>
+              <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-gray-800 font-bold">
+                {matchResult.tasteSummary.mediaTypeLabel}
+              </span>
+              <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-gray-800">
+                {matchResult.tasteSummary.genresLabel}
+              </span>
+              <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-gray-800">
+                {matchResult.tasteSummary.moodLabel}
+              </span>
+              {matchResult.tasteSummary.referenceLabel && (
+                <span className="px-2.5 py-1 bg-blue-50 text-[#008CFF] rounded-lg">
+                  Ref: {matchResult.tasteSummary.referenceLabel}
+                </span>
+              )}
+            </div>
+          </div>
 
-          {/* Section 1: From The Abstract Take (Reviewed Titles) */}
+          {/* Section 2: Our Best Matches From The Abstract Take */}
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-              <div className="flex items-center space-x-2">
-                <Film className="w-4 h-4 text-[#008CFF]" />
-                <h2 className="font-serif font-black text-xl text-gray-900">
-                  From The Abstract Take Archives
+              <div className="flex items-center space-x-2.5">
+                <Film className="w-5 h-5 text-[#008CFF]" />
+                <h2 className="font-serif font-black text-2xl text-gray-950">
+                  {matchResult.hasExactMatches
+                    ? 'Our Best Matches For You'
+                    : 'Closest Selections From Our Archives'}
                 </h2>
               </div>
               <span className="text-xs font-mono text-gray-500">
@@ -104,7 +146,7 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {matchResult.reviewedMatches.map((pick) => (
                 <article
                   key={pick.id}
@@ -130,8 +172,8 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
                   </div>
 
                   <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                    <div>
-                      <div className="flex items-center space-x-2 text-xs font-mono text-gray-500 mb-1.5">
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 text-xs font-mono text-gray-500">
                         <span>{pick.releaseYear}</span>
                         <span>•</span>
                         <span className="truncate">Dir. {pick.director}</span>
@@ -141,12 +183,28 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
                         <Link href={`/reviews/${pick.slug}`}>{pick.title}</Link>
                       </h3>
 
-                      <p className="font-news text-sm text-gray-600 line-clamp-3 leading-relaxed mt-2">
+                      <p className="font-news text-sm text-gray-600 line-clamp-2 leading-relaxed">
                         {pick.summary}
                       </p>
                     </div>
 
-                    <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-mono">
+                    {/* Section 3: Explainability Box (Why This Matches Your Taste) */}
+                    <div className="bg-blue-50/50 border border-blue-100/80 rounded-2xl p-3.5 space-y-2 text-left">
+                      <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#008CFF] flex items-center space-x-1.5">
+                        <Sparkles className="w-3 h-3 text-[#008CFF]" />
+                        <span>Why This Matches Your Taste</span>
+                      </div>
+                      <ul className="space-y-1 text-xs text-gray-700">
+                        {pick.reason.explanationBullets.map((bullet, idx) => (
+                          <li key={idx} className="flex items-start space-x-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#008CFF] flex-shrink-0 mt-0.5" />
+                            <span className="leading-snug">{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-mono">
                       <Link
                         href={`/reviews/${pick.slug}`}
                         className="font-bold text-[#008CFF] hover:underline flex items-center space-x-1"
@@ -161,12 +219,12 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
             </div>
           </div>
 
-          {/* Section 2: Matched Curated Collections */}
+          {/* Section 4: Matched Curated Collections */}
           {matchResult.collectionMatches.length > 0 && (
             <div className="space-y-6 pt-6">
-              <div className="flex items-center space-x-2 border-b border-gray-200 pb-3">
-                <Layers className="w-4 h-4 text-[#008CFF]" />
-                <h2 className="font-serif font-black text-xl text-gray-900">
+              <div className="flex items-center space-x-2.5 border-b border-gray-200 pb-3">
+                <Layers className="w-5 h-5 text-[#008CFF]" />
+                <h2 className="font-serif font-black text-2xl text-gray-950">
                   Explore Related Collections
                 </h2>
               </div>
@@ -220,10 +278,32 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
               </div>
             </div>
           )}
+
+          {/* Section 6: Optional Newsletter CTA */}
+          <div className="pt-10">
+            <div className="bg-[#111111] text-white border border-gray-800 rounded-3xl p-8 sm:p-12 space-y-6">
+              <div className="max-w-2xl space-y-3">
+                <span className="inline-block px-3 py-1 bg-white/10 text-[#00C0FF] rounded-full text-xs font-mono font-bold uppercase tracking-wider">
+                  DISPATCHES
+                </span>
+                <h3 className="font-serif font-black text-2xl sm:text-3xl text-white">
+                  Get Better Recommendations Over Time
+                </h3>
+                <p className="font-news text-sm sm:text-base text-gray-400 leading-relaxed">
+                  Join readers receiving weekly curated cinema dossiers, hidden gems, and uncompromising critiques from The Abstract Take.
+                </p>
+              </div>
+              <div className="max-w-md">
+                <NewsletterSubscribeForm />
+              </div>
+            </div>
+          </div>
         </section>
       ) : (
-        /* Standard All Collections View */
-        <section className="space-y-10">
+        /* ------------------------------------------------------------------ */
+        /* STANDARD ALL COLLECTIONS VIEW                                      */
+        /* ------------------------------------------------------------------ */
+        <section className="space-y-12">
           {/* Header */}
           <header className="border-b border-gray-200/80 pb-6 space-y-4">
             <span className="inline-block px-3 py-1 bg-[#008CFF]/10 text-[#008CFF] rounded-full text-xs font-mono font-bold uppercase tracking-wider">
@@ -238,7 +318,7 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
             <div className="pt-2">
               <CuratorAiTrigger
                 variant="banner"
-                label="What Should I Watch Next? (Curator Engine)"
+                label="What Should I Watch Next? (Discovery Engine)"
               />
             </div>
           </header>

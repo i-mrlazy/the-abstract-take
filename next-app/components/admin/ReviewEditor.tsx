@@ -19,6 +19,12 @@ import {
   getScoreMeaning,
   getRatingColorClasses,
 } from '@/lib/utils/rating';
+import {
+  TAXONOMY_THEMES,
+  TAXONOMY_MOODS,
+  TAXONOMY_PACING,
+  TAXONOMY_EXPERIENCES,
+} from '@/lib/editorial/recommendationTaxonomy';
 import { ReviewLivePreviewModal } from './ReviewLivePreviewModal';
 import { EditorialAssistantModal } from './EditorialAssistantModal';
 import {
@@ -146,6 +152,20 @@ export function ReviewEditor({
           { name: 'Max', type: 'Subscription', url: 'https://max.com' },
           { name: 'Apple TV', type: 'Rent/Buy' },
         ]
+  );
+
+  // Recommendation Metadata (Phase 5.2 Taxonomy)
+  const [selectedThemes, setSelectedThemes] = useState<string[]>(
+    initialReview?.recommendationMetadata?.themes || []
+  );
+  const [selectedMoods, setSelectedMoods] = useState<string[]>(
+    initialReview?.recommendationMetadata?.moods || []
+  );
+  const [pacing, setPacing] = useState<string>(
+    initialReview?.recommendationMetadata?.pacing || ''
+  );
+  const [selectedExperiences, setSelectedExperiences] = useState<string[]>(
+    initialReview?.recommendationMetadata?.audienceExperience || []
   );
 
   // Flags
@@ -488,6 +508,12 @@ export function ReviewEditor({
       isLatestTake,
       isEditorPick,
       isHiddenGem,
+      recommendationMetadata: {
+        themes: selectedThemes,
+        moods: selectedMoods,
+        pacing: pacing || undefined,
+        audienceExperience: selectedExperiences,
+      },
       streamingPlatforms: streamingPlatforms.filter((p) => p.name.trim()),
       seo: {
         metaTitle: metaTitle.trim() || `${title} Review — The Abstract Take`,
@@ -1527,6 +1553,129 @@ export function ReviewEditor({
                 >
                   Add
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Recommendation Signals (Phase 5.2 Taxonomy Metadata) */}
+          <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-sm space-y-4">
+            <h3 className="font-serif font-black text-sm text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-[#008CFF]" />
+              <span>Recommendation Signals (Discovery Metadata)</span>
+            </h3>
+
+            {/* Themes */}
+            <div>
+              <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                Core Themes ({selectedThemes.length} selected)
+              </label>
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-gray-50/50 rounded-xl border border-gray-100">
+                {TAXONOMY_THEMES.map((theme) => {
+                  const isSelected = selectedThemes.includes(theme);
+                  return (
+                    <button
+                      key={theme}
+                      type="button"
+                      onClick={() =>
+                        setSelectedThemes((prev) =>
+                          prev.includes(theme)
+                            ? prev.filter((t) => t !== theme)
+                            : [...prev, theme]
+                        )
+                      }
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-mono transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#008CFF] text-white font-bold'
+                          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      {theme}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Moods */}
+            <div>
+              <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                Atmosphere & Moods ({selectedMoods.length} selected)
+              </label>
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-gray-50/50 rounded-xl border border-gray-100">
+                {TAXONOMY_MOODS.map((moodItem) => {
+                  const isSelected = selectedMoods.includes(moodItem);
+                  return (
+                    <button
+                      key={moodItem}
+                      type="button"
+                      onClick={() =>
+                        setSelectedMoods((prev) =>
+                          prev.includes(moodItem)
+                            ? prev.filter((m) => m !== moodItem)
+                            : [...prev, moodItem]
+                        )
+                      }
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-mono transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#008CFF] text-white font-bold'
+                          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      {moodItem}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pacing */}
+            <div>
+              <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                Narrative Pacing
+              </label>
+              <select
+                value={pacing}
+                onChange={(e) => setPacing(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none"
+              >
+                <option value="">Auto-detected / Unspecified</option>
+                {TAXONOMY_PACING.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Audience Experience */}
+            <div>
+              <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1.5">
+                Audience Experience
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {TAXONOMY_EXPERIENCES.map((exp) => {
+                  const isSelected = selectedExperiences.includes(exp);
+                  return (
+                    <button
+                      key={exp}
+                      type="button"
+                      onClick={() =>
+                        setSelectedExperiences((prev) =>
+                          prev.includes(exp)
+                            ? prev.filter((e) => e !== exp)
+                            : [...prev, exp]
+                        )
+                      }
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-mono transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-purple-600 text-white font-bold'
+                          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      {exp}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

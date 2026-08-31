@@ -77,6 +77,13 @@ export interface Review {
   language?: string;
   country?: string;
   seo?: ReviewSEO;
+  recommendationMetadata?: {
+    themes?: string[];
+    moods?: string[];
+    tones?: string[];
+    pacing?: string;
+    audienceExperience?: string[];
+  };
   source?: 'manual' | 'google_sheets_automation';
   automationRowId?: string;
   createdAt?: string;

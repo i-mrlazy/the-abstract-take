@@ -14,11 +14,13 @@ import {
   AlertCircle,
   Film,
   ExternalLink,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useAiConcierge } from '@/lib/context/AiConciergeContext';
 import { AbstractScoreBadge } from '../ui/AbstractScoreBadge';
 import { BookmarkButton } from '../bookmarks/BookmarkButton';
 import { normalizeScore } from '@/lib/utils/rating';
+import { TAXONOMY_GENRES, TAXONOMY_MOODS } from '@/lib/editorial/recommendationTaxonomy';
 import type { Review } from '@/types';
 
 interface RecommendationResult {
@@ -26,49 +28,49 @@ interface RecommendationResult {
   type: string;
   year: string;
   director: string;
-  abstractScore: number;
+  abstractScore?: number;
   summary: string;
   whyWatch: string;
 }
 
-const GENRE_OPTIONS = [
+const POPULAR_GENRES = [
   'Romance',
   'Drama',
-  'Sci-Fi',
+  'Science Fiction',
   'Thriller',
   'Mystery',
   'Crime',
-  'Action',
+  'Psychological',
+  'Animation',
   'Comedy',
   'Horror',
-  'Fantasy',
-  'Adventure',
-  'Animation',
-  'Psychological',
   'Historical',
   'Documentary',
-  'Slice of Life',
+  'Action',
+  'Coming-of-Age',
+  'Fantasy',
 ];
 
-const MOOD_OPTIONS = [
-  'Contemplative & Atmospheric',
-  'High Paranoia & Mind-Bending',
+const MOOD_PRESETS = [
   'Deeply Emotional & Melancholic',
-  'Sharp & Intellectually Rigorous',
-  'Visually Stunning Neo-Noir',
-  'Comforting Slice-of-Life',
+  'High Paranoia & Mind-Bending',
   'Dark & Gritty',
-  'Intense & Thrilling',
+  'Contemplative & Atmospheric',
+  'Sharp & Intellectually Rigorous',
+  'Visually Stunning & Dreamlike',
+  'Warm, Comforting & Human',
+  'Tense & Edge-of-Seat',
 ];
 
 export function AiConciergeModal() {
   const { isOpen, closeConcierge } = useAiConcierge();
   const router = useRouter();
 
-  const [mood, setMood] = useState('Contemplative & Atmospheric');
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(['Drama']);
-  const [favoriteFilms, setFavoriteFilms] = useState('');
+  // 4-Step Form State
   const [mediaType, setMediaType] = useState('Any');
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(['Drama']);
+  const [mood, setMood] = useState('Deeply Emotional & Melancholic');
+  const [favoriteFilms, setFavoriteFilms] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function AiConciergeModal() {
   const [recommendations, setRecommendations] = useState<RecommendationResult[] | null>(null);
   const [existingReviews, setExistingReviews] = useState<Review[]>([]);
 
-  // Optional newsletter signup state (non-blocking)
+  // Optional newsletter signup state
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
   const [newsletterLoading, setNewsletterLoading] = useState(false);
@@ -92,26 +94,22 @@ export function AiConciergeModal() {
           }
         })
         .catch(() => {
-          // Graceful fallback if reviews API fails
+          // Graceful fallback
         });
     }
   }, [isOpen, existingReviews.length]);
 
-  // Handle Escape key to close modal
+  // Handle Escape key
   useEffect(() => {
     if (!isOpen) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeConcierge();
-      }
+      if (e.key === 'Escape') closeConcierge();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeConcierge]);
 
-  // Lock body scroll when modal is active
+  // Lock body scroll
   useEffect(() => {
     if (isOpen) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
@@ -178,16 +176,12 @@ export function AiConciergeModal() {
       const data = await response.json();
       if (data.recommendations && Array.isArray(data.recommendations)) {
         setRecommendations(data.recommendations);
-        setCuratorNote(
-          data.curatorNote ||
-            'Tailored picks reflecting your personal taste profile and cinematic preferences.'
-        );
+        setCuratorNote(data.curatorNote || null);
       } else {
-        throw new Error('No recommendations could be generated for these criteria.');
+        throw new Error('Could not generate recommendations for the given criteria.');
       }
     } catch (err: any) {
-      console.error('Recommendation error:', err);
-      setApiError(err.message || 'Failed to generate recommendations. Please try again.');
+      setApiError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -236,7 +230,7 @@ export function AiConciergeModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           closeConcierge();
@@ -247,7 +241,7 @@ export function AiConciergeModal() {
       aria-labelledby="discovery-modal-title"
     >
       <div
-        className="bg-white border border-gray-200/90 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh] text-left animate-in zoom-in-95 duration-200"
+        className="bg-white border border-gray-200/90 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh] text-left animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -255,16 +249,16 @@ export function AiConciergeModal() {
           <div className="space-y-1">
             <div className="inline-flex items-center space-x-1.5 bg-blue-50 text-[#008CFF] text-[10px] font-mono font-bold px-2.5 py-1 rounded-md uppercase tracking-wider border border-blue-100">
               <Compass className="w-3.5 h-3.5 text-[#008CFF]" />
-              <span>THE ABSTRACT TAKE CURATOR</span>
+              <span>THE ABSTRACT TAKE DISCOVERY</span>
             </div>
             <h2
               id="discovery-modal-title"
-              className="font-serif font-black text-2xl sm:text-3xl text-[#111111]"
+              className="font-serif font-black text-2xl sm:text-3xl text-gray-950"
             >
               What Should I Watch Next?
             </h2>
             <p className="text-xs font-news text-gray-500 font-medium">
-              Instant personalized recommendations curated strictly on artistic caliber and storytelling rigor.
+              Structured recommendations curated strictly on artistic caliber and storytelling rigor.
             </p>
           </div>
           <button
@@ -281,15 +275,15 @@ export function AiConciergeModal() {
           {!recommendations ? (
             <form
               onSubmit={handleGenerate}
-              className="space-y-5 bg-white p-6 border border-gray-200/90 rounded-2xl shadow-sm"
+              className="space-y-5 bg-white p-6 border border-gray-200/90 rounded-2xl shadow-xs"
             >
-              {/* 1. Format preference */}
+              {/* STEP 1: Format preference */}
               <div>
                 <label
                   htmlFor="discovery-media-type"
-                  className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-1"
+                  className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-800 mb-1"
                 >
-                  1. Format Preference:
+                  Step 1: What format are you watching?
                 </label>
                 <select
                   id="discovery-media-type"
@@ -307,13 +301,13 @@ export function AiConciergeModal() {
                 </select>
               </div>
 
-              {/* 2. Genre selector */}
+              {/* STEP 2: Genre selector */}
               <div>
-                <label className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-2">
-                  2. Select Genres / Themes:
+                <label className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-800 mb-2">
+                  Step 2: What are you in the mood for? (Select Genres):
                 </label>
                 <div className="flex flex-wrap gap-1.5">
-                  {GENRE_OPTIONS.map((g) => {
+                  {POPULAR_GENRES.map((g) => {
                     const active = selectedGenres.includes(g);
                     return (
                       <button
@@ -333,20 +327,20 @@ export function AiConciergeModal() {
                 </div>
               </div>
 
-              {/* 3. Mood selector */}
+              {/* STEP 3: Mood selector */}
               <div>
-                <label className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-2">
-                  3. Viewing Mood & Atmosphere:
+                <label className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-800 mb-2">
+                  Step 3: How do you want it to feel? (Atmosphere):
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {MOOD_OPTIONS.map((m) => (
+                  {MOOD_PRESETS.map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => setMood(m)}
-                      className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
+                      className={`text-left px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all cursor-pointer ${
                         mood === m
-                          ? 'bg-[#111111] text-white shadow-2xs'
+                          ? 'bg-[#008CFF] text-white font-bold shadow-2xs'
                           : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
                       }`}
                     >
@@ -356,102 +350,111 @@ export function AiConciergeModal() {
                 </div>
               </div>
 
-              {/* 4. Favorite recent titles (optional) */}
+              {/* STEP 4: Reference Titles */}
               <div>
                 <label
-                  htmlFor="discovery-favorite-films"
-                  className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-700 mb-1"
+                  htmlFor="discovery-fav-films"
+                  className="block font-mono font-bold text-xs uppercase tracking-wider text-gray-800 mb-1"
                 >
-                  4. Reference Favorites (Optional):
+                  Step 4: Anything you already love? (Optional Taste Signals):
                 </label>
                 <input
-                  id="discovery-favorite-films"
+                  id="discovery-fav-films"
                   type="text"
+                  placeholder="e.g. Past Lives, Drive My Car, Mindhunter, Severance"
                   value={favoriteFilms}
                   onChange={(e) => setFavoriteFilms(e.target.value)}
-                  placeholder="e.g. Past Lives, Severance, Drive My Car, Perfect Blue..."
-                  className="w-full bg-gray-50/70 font-mono text-xs px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-[#008CFF] focus:bg-white transition-all text-gray-900"
+                  className="w-full bg-gray-50/70 font-news text-xs px-3.5 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-[#008CFF] focus:bg-white transition-all text-gray-900"
                 />
               </div>
 
-              {/* Error Banner */}
               {apiError && (
-                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3 text-rose-900 text-xs font-mono">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold block">Recommendation Notice</span>
-                    <span>{apiError}</span>
-                  </div>
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{apiError}</span>
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-[#008CFF] hover:bg-[#0077dd] text-white py-3.5 rounded-xl font-sans font-bold text-sm uppercase tracking-wider flex items-center justify-center space-x-2 cursor-pointer shadow-xs transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    <span>Curating Your Recommendations...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Get Personalized Watch Recommendations</span>
-                  </>
-                )}
-              </button>
+              {/* Submit Action */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full sm:flex-1 bg-[#008CFF] hover:bg-[#0077dd] text-white font-sans font-bold text-xs uppercase tracking-wider py-3.5 px-6 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Curating Matches...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Show Me What To Watch</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleViewFullResults}
+                  className="w-full sm:w-auto px-4 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-sans font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+                >
+                  Explore Full Dossier
+                </button>
+              </div>
             </form>
           ) : (
+            /* Results View */
             <div className="space-y-6">
-              {/* Curator Note */}
               {curatorNote && (
-                <div className="bg-blue-50/70 border border-blue-100 p-4 rounded-2xl flex items-start space-x-3">
-                  <Compass className="w-5 h-5 text-[#008CFF] flex-shrink-0 mt-0.5" />
-                  <p className="text-xs font-news text-gray-800 italic font-medium leading-relaxed">
-                    &ldquo;{curatorNote}&rdquo;
-                  </p>
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-xs font-news text-blue-950 leading-relaxed italic border-l-4 border-l-[#008CFF]">
+                  &ldquo;{curatorNote}&rdquo;
                 </div>
               )}
 
-              {/* Recommendations Cards */}
-              <div className="grid grid-cols-1 gap-4">
-                {recommendations.map((rec, idx) => {
-                  const score = normalizeScore(rec.abstractScore);
+              {/* Recommendation Cards */}
+              <div className="space-y-4">
+                {recommendations.map((rec, index) => {
                   const matchingReview = findMatchingReview(rec.title);
+                  const isReviewed = Boolean(matchingReview);
+                  const score = isReviewed
+                    ? normalizeScore(matchingReview!.abstractScore)
+                    : Number(rec.abstractScore) || 9;
 
                   return (
                     <div
-                      key={idx}
-                      className="p-5 bg-white border border-gray-200/90 rounded-2xl shadow-sm space-y-3"
+                      key={index}
+                      className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs hover:border-[#008CFF]/40 transition-all space-y-3 text-left"
                     >
-                      <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-3">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="bg-blue-50 text-[#008CFF] border border-blue-100 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md uppercase">
+                          <div className="flex items-center space-x-2 text-xs font-mono text-gray-500 mb-1">
+                            <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-700 font-bold">
                               {rec.type}
                             </span>
-                            <span className="text-xs font-mono font-bold text-gray-400">
-                              {rec.year}
-                            </span>
+                            <span>•</span>
+                            <span>{rec.year}</span>
+                            <span>•</span>
+                            <span className="truncate">Dir. {rec.director}</span>
                           </div>
-                          <h3 className="font-serif font-black text-lg text-[#111111] mt-1">
+
+                          <h3 className="font-serif font-black text-xl text-gray-950 leading-snug">
                             {rec.title}
                           </h3>
-                          <p className="text-xs font-mono text-gray-500 font-medium">
-                            Dir. {rec.director}
-                          </p>
                         </div>
 
+                        {/* Badges & Actions */}
                         <div className="flex items-center space-x-2">
-                          {matchingReview && (
-                            <BookmarkButton
-                              reviewId={matchingReview.id}
-                              variant="icon"
-                            />
+                          {isReviewed && (
+                            <BookmarkButton reviewId={matchingReview!.id} variant="icon" />
                           )}
-                          <AbstractScoreBadge score={score} size="sm" showLabel={false} />
+                          {isReviewed ? (
+                            <AbstractScoreBadge score={score} size="sm" showLabel={false} />
+                          ) : (
+                            <span className="bg-gray-100 text-gray-600 text-[10px] font-mono px-2 py-1 rounded-md uppercase tracking-wider font-bold">
+                              Curated Pick
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -459,100 +462,96 @@ export function AiConciergeModal() {
                         {rec.summary}
                       </p>
 
-                      <div className="bg-gray-50/80 border border-gray-100 p-3.5 rounded-xl space-y-1 text-xs">
-                        <div className="font-mono font-bold text-[#008CFF] text-[10px] uppercase tracking-wider">
-                          Why I Recommend It:
-                        </div>
-                        <p className="font-news text-gray-700 italic">{rec.whyWatch}</p>
+                      {/* Explainability signal */}
+                      <div className="bg-blue-50/60 border border-blue-100/80 rounded-xl p-3 text-left space-y-1">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#008CFF] flex items-center space-x-1">
+                          <CheckCircle2 className="w-3 h-3 text-[#008CFF]" />
+                          <span>Why This Matches Your Taste:</span>
+                        </span>
+                        <p className="text-xs text-gray-700 leading-snug">
+                          {rec.whyWatch}
+                        </p>
                       </div>
 
-                      {/* Internal review link if matching review exists in database */}
-                      {matchingReview ? (
-                        <div className="pt-2 flex items-center justify-between">
-                          <span className="text-[11px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">
-                            Reviewed in Archives
-                          </span>
+                      {/* Review Link / Unreviewed indicator */}
+                      <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs font-mono">
+                        {isReviewed ? (
                           <Link
-                            href={`/reviews/${matchingReview.slug}`}
+                            href={`/reviews/${matchingReview!.slug}`}
                             onClick={closeConcierge}
-                            className="inline-flex items-center space-x-1.5 text-xs font-mono font-bold text-[#008CFF] hover:underline"
+                            className="font-bold text-[#008CFF] hover:underline flex items-center space-x-1"
                           >
-                            <Film className="w-3.5 h-3.5" />
-                            <span>Read Full Take</span>
+                            <span>Read Full Take ({score}/10)</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
-                        </div>
-                      ) : (
-                        <div className="pt-2 flex items-center justify-between text-[11px] font-mono text-gray-400">
-                          <span>Curated Editorial Pick</span>
-                          <span className="text-gray-400">Independent Selection</span>
-                        </div>
-                      )}
+                        ) : (
+                          <span className="text-gray-500 italic text-[11px]">
+                            Not Yet Reviewed by The Abstract Take
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Optional Post-Results Newsletter Box */}
-              <div className="p-4 bg-gradient-to-br from-blue-50/80 to-cyan-50/60 border border-blue-100 rounded-2xl space-y-3">
-                <div className="flex items-center space-x-2 text-xs font-mono font-bold uppercase tracking-wider text-gray-800">
-                  <Mail className="w-4 h-4 text-[#008CFF]" />
-                  <span>Want recommendations like this in your inbox? (Optional)</span>
-                </div>
-                {newsletterSubscribed ? (
-                  <div className="flex items-center space-x-2 text-xs font-mono text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Subscribed to The Abstract Dispatch!</span>
-                  </div>
-                ) : (
-                  <form onSubmit={handleNewsletterSubscribe} className="flex gap-2">
-                    <input
-                      type="email"
-                      placeholder="Your email (e.g. alex@example.com)..."
-                      value={newsletterEmail}
-                      onChange={(e) => setNewsletterEmail(e.target.value)}
-                      className="flex-1 bg-white px-3.5 py-2 rounded-xl text-xs font-sans border border-gray-200 focus:outline-none focus:border-[#008CFF] text-gray-900"
-                    />
-                    <button
-                      type="submit"
-                      disabled={newsletterLoading || !newsletterEmail.trim()}
-                      className="px-4 py-2 bg-[#008CFF] hover:bg-[#0077dd] text-white rounded-xl text-xs font-mono font-bold uppercase transition-colors disabled:opacity-50 cursor-pointer shrink-0"
-                    >
-                      {newsletterLoading ? 'Subscribing...' : 'Email Me'}
-                    </button>
-                  </form>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                 <button
-                  type="button"
                   onClick={handleReset}
-                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-mono text-xs font-bold uppercase transition-colors cursor-pointer flex items-center space-x-2"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-mono font-bold uppercase transition-colors cursor-pointer"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Modify Criteria</span>
+                  Change Viewing Taste
                 </button>
 
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={handleViewFullResults}
-                    className="px-4 py-2.5 bg-[#008CFF] hover:bg-[#0077dd] text-white rounded-xl font-mono text-xs font-bold uppercase transition-colors cursor-pointer flex items-center space-x-1.5"
-                  >
-                    <span>Explore Results Page</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
+                <button
+                  onClick={handleViewFullResults}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-[#008CFF] hover:bg-[#0077dd] text-white rounded-xl text-xs font-mono font-bold uppercase transition-colors flex items-center justify-center space-x-2 cursor-pointer shadow-xs"
+                >
+                  <span>Explore Results Page</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-                  <button
-                    type="button"
-                    onClick={closeConcierge}
-                    className="px-6 py-2.5 bg-[#111111] hover:bg-gray-800 text-white rounded-xl font-sans text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              {/* Optional Newsletter Opt-In */}
+              <div className="pt-4 border-t border-gray-200">
+                {!newsletterSubscribed ? (
+                  <form
+                    onSubmit={handleNewsletterSubscribe}
+                    className="bg-gray-100/80 rounded-2xl p-4 text-left space-y-2"
                   >
-                    Done
-                  </button>
-                </div>
+                    <div className="flex items-center space-x-2">
+                      <Mail className="w-4 h-4 text-[#008CFF]" />
+                      <span className="font-mono text-xs font-bold text-gray-900">
+                        Want personalized recommendations like this in your inbox?
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-news text-gray-600">
+                      Receive our weekly curated cinema dossiers and uncompromised reviews. Zero spam.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="email"
+                        placeholder="your.email@example.com"
+                        value={newsletterEmail}
+                        onChange={(e) => setNewsletterEmail(e.target.value)}
+                        className="flex-1 bg-white font-mono text-xs px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-[#008CFF]"
+                      />
+                      <button
+                        type="submit"
+                        disabled={newsletterLoading}
+                        className="bg-[#008CFF] hover:bg-[#0077dd] text-white font-mono text-xs font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {newsletterLoading ? 'Joining...' : 'Subscribe'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-center space-x-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#008CFF] flex-shrink-0" />
+                    <span>You’re subscribed! Future recommendation dossiers will arrive in your inbox.</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
