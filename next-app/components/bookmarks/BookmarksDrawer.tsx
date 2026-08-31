@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useBookmarks } from '@/lib/context/BookmarksContext';
+import { ReviewArtwork } from '@/components/ui/ReviewArtwork';
 import { X, Bookmark, Trash2, ArrowRight, Loader2 } from 'lucide-react';
 import { normalizeScore } from '@/lib/utils/rating';
 
@@ -110,10 +111,19 @@ export function BookmarksDrawer() {
                   <Link
                     href={`/reviews/${rev.slug}`}
                     onClick={closeDrawer}
-                    className="w-16 h-24 object-cover rounded-xl border border-gray-200 flex-shrink-0 overflow-hidden block bg-gray-100"
+                    className="w-16 h-24 rounded-xl border border-gray-200 flex-shrink-0 overflow-hidden block bg-gray-900"
                   >
-                    <img
-                      src={rev.posterUrl}
+                    <ReviewArtwork
+                      title={rev.title}
+                      releaseYear={rev.releaseYear}
+                      type={rev.type}
+                      slug={rev.slug}
+                      posterUrl={rev.posterUrl}
+                      bannerUrl={rev.bannerUrl}
+                      artwork={rev.artwork}
+                      abstractScore={rev.abstractScore}
+                      preferredType="poster"
+                      aspectRatio="portrait"
                       alt={rev.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />

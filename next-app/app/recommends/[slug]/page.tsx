@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { db } from '@/lib/db';
 import { AbstractScoreBadge } from '@/components/ui/AbstractScoreBadge';
+import { ReviewArtwork } from '@/components/ui/ReviewArtwork';
 import { ArrowLeft, Layers, Tv, Film, ArrowUpRight } from 'lucide-react';
 
 import { buildRecommendationMetadata } from '@/lib/seo/metadata';
@@ -104,13 +105,19 @@ export default async function RecommendsCollectionPage({ params }: RecommendsSlu
               className="bg-white border border-gray-200/90 rounded-3xl p-6 sm:p-8 shadow-xs hover:border-[#008CFF]/40 transition-all flex flex-col md:flex-row gap-6 sm:gap-8 items-start"
             >
               {/* Item Poster */}
-              <div className="w-full md:w-48 shrink-0 relative aspect-2/3 bg-gray-100 rounded-2xl overflow-hidden shadow-2xs">
-                <img
-                  src={item.posterUrl}
+              <div className="w-full md:w-48 shrink-0 relative aspect-2/3 bg-gray-900 rounded-2xl overflow-hidden shadow-2xs">
+                <ReviewArtwork
+                  title={item.title}
+                  releaseYear={Number(item.year || item.releaseYear) || undefined}
+                  type={item.type}
+                  posterUrl={item.posterUrl}
+                  abstractScore={item.abstractScore}
+                  preferredType="poster"
+                  aspectRatio="portrait"
                   alt={item.title}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-2 left-2 w-7 h-7 bg-[#111111]/85 backdrop-blur-xs text-white rounded-lg flex items-center justify-center font-mono font-bold text-xs">
+                <div className="absolute top-2 left-2 w-7 h-7 bg-[#111111]/85 backdrop-blur-xs text-white rounded-lg flex items-center justify-center font-mono font-bold text-xs z-10">
                   {index + 1}
                 </div>
               </div>

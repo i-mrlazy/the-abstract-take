@@ -5,8 +5,8 @@
     "type": "Movie",
     "releaseYear": 2024,
     "director": "Luca Guadagnino",
-    "posterUrl": "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/H6vke7zGiuLsz4v4RPeReb9rsv.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/tq8COKsI99Bivjd4CZIYVGoKcIx.jpg",
     "abstractScore": 9,
     "moodTag": "Electric, Kinetic & High-Tension",
     "personalCommentary": "If you love the intensity of Denis Villeneuve or David Fincher's kinetic editing, Guadagnino's tennis drama is pure sensory adrenaline set to Trent Reznor & Atticus Ross's pulsing electronic score.",
@@ -21,13 +21,14 @@
     "type": "Movie",
     "releaseYear": 2023,
     "director": "Hirokazu Kore-eda",
-    "posterUrl": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/kvUJUyUGOhEoiWWNH04IXoExPE2.jpg",
     "abstractScore": 10,
     "moodTag": "Heartbreaking, Rashomon-Style Drama",
     "personalCommentary": "A transcendent, deeply empathetic drama scored by Ryuichi Sakamoto. Like Drive My Car, it shifts your emotional equilibrium through profound structural patience.",
     "whereToWatch": "Max / VOD",
     "publishDate": "2026-08-22",
     "status": "published",
-    "readyForNewsletter": true
+    "readyForNewsletter": true,
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/dZJcOyRonN0Kb7kJR3DE3esGn16.jpg"
   }
 ]

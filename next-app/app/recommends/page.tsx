@@ -6,6 +6,7 @@ import { matchReviewsByCriteria } from '@/lib/editorial/recommendationEngine';
 import { CuratorAiTrigger } from '@/components/ai/CuratorAiTrigger';
 import { AbstractScoreBadge } from '@/components/ui/AbstractScoreBadge';
 import { BookmarkButton } from '@/components/bookmarks/BookmarkButton';
+import { ReviewArtwork } from '@/components/ui/ReviewArtwork';
 import { NewsletterSubscribeForm } from '@/components/newsletter/NewsletterSubscribeForm';
 import {
   Compass,
@@ -154,10 +155,17 @@ export default async function RecommendsPage({ searchParams }: RecommendsPagePro
                 >
                   <div className="relative aspect-16/10 bg-gray-100 overflow-hidden">
                     <Link href={`/reviews/${pick.slug}`} className="block w-full h-full">
-                      <img
-                        src={pick.posterUrl}
+                      <ReviewArtwork
+                        title={pick.title}
+                        releaseYear={pick.releaseYear}
+                        type={pick.type}
+                        slug={pick.slug}
+                        posterUrl={pick.posterUrl}
+                        abstractScore={pick.abstractScore}
+                        preferredType="poster"
+                        aspectRatio="auto"
                         alt={pick.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full group-hover:scale-105 transition-transform duration-500"
                       />
                     </Link>
                     <div className="absolute top-3 left-3 z-10">

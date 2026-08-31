@@ -2,6 +2,7 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { db } from '@/lib/db';
 import { AbstractScoreBadge } from '@/components/ui/AbstractScoreBadge';
+import { ReviewArtwork } from '@/components/ui/ReviewArtwork';
 import { CuratorAiTrigger } from '@/components/ai/CuratorAiTrigger';
 import { BookmarkButton } from '@/components/bookmarks/BookmarkButton';
 import { Compass, Tv } from 'lucide-react';
@@ -48,9 +49,16 @@ export default async function WhatToWatchNextPage() {
             key={item.id}
             className="bg-white border border-gray-200/90 rounded-3xl overflow-hidden shadow-xs hover:border-[#008CFF]/50 transition-all flex flex-col justify-between"
           >
-            <div className="relative aspect-16/10 bg-gray-100 overflow-hidden">
-              <img
-                src={item.bannerUrl || item.posterUrl}
+            <div className="relative aspect-16/10 bg-gray-900 overflow-hidden">
+              <ReviewArtwork
+                title={item.title}
+                releaseYear={item.releaseYear}
+                type={item.type}
+                posterUrl={item.posterUrl}
+                bannerUrl={item.bannerUrl}
+                abstractScore={item.abstractScore}
+                preferredType="backdrop"
+                aspectRatio="landscape"
                 alt={item.title}
                 className="w-full h-full object-cover"
               />

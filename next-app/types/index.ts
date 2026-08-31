@@ -22,6 +22,17 @@ export interface ReviewSEO {
   noIndex?: boolean;
 }
 
+export interface ArtworkMetadata {
+  poster?: string;
+  backdrop?: string;
+  sourceType?: 'official' | 'licensed' | 'creative-commons' | 'public-domain' | 'branded-fallback';
+  sourceName?: string;
+  sourceUrl?: string;
+  attributionRequired?: boolean;
+  attributionText?: string;
+  verified?: boolean;
+}
+
 export interface Review {
   id: string;
   slug: string;
@@ -38,6 +49,7 @@ export interface Review {
   bannerUrl: string;
   posterAlt?: string;
   bannerAlt?: string;
+  artwork?: ArtworkMetadata;
   abstractScore: number; // Strict 1 to 10
   myTake: string; // The creator's core editorial hook / personal thesis
   streamingPlatforms: StreamingPlatform[];

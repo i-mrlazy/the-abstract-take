@@ -11,6 +11,7 @@ import {
   StreamingPlatform,
   MediaSearchResult,
   EditorialDraftResult,
+  ArtworkMetadata,
 } from '@/types';
 import {
   RATING_SCALE,
@@ -166,6 +167,17 @@ export function ReviewEditor({
   );
   const [selectedExperiences, setSelectedExperiences] = useState<string[]>(
     initialReview?.recommendationMetadata?.audienceExperience || []
+  );
+
+  // Artwork Metadata & Provenance (Phase 5.2.1)
+  const [artworkSourceType, setArtworkSourceType] = useState<ArtworkMetadata['sourceType']>(
+    initialReview?.artwork?.sourceType || 'official'
+  );
+  const [artworkSourceName, setArtworkSourceName] = useState<string>(
+    initialReview?.artwork?.sourceName || ''
+  );
+  const [isArtworkVerified, setIsArtworkVerified] = useState<boolean>(
+    initialReview?.artwork?.verified ?? true
   );
 
   // Flags
@@ -508,6 +520,13 @@ export function ReviewEditor({
       isLatestTake,
       isEditorPick,
       isHiddenGem,
+      artwork: {
+        poster: posterUrl.trim() || undefined,
+        backdrop: bannerUrl.trim() || undefined,
+        sourceType: artworkSourceType,
+        sourceName: artworkSourceName.trim() || undefined,
+        verified: isArtworkVerified,
+      },
       recommendationMetadata: {
         themes: selectedThemes,
         moods: selectedMoods,
@@ -1503,6 +1522,53 @@ export function ReviewEditor({
                   />
                 </div>
               )}
+            </div>
+
+            {/* Asset Classification & Provenance (Phase 5.2.1) */}
+            <div className="pt-3 border-t border-gray-100 space-y-3">
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1">
+                  Asset Classification
+                </label>
+                <select
+                  value={artworkSourceType}
+                  onChange={(e) =>
+                    setArtworkSourceType(
+                      e.target.value as ArtworkMetadata['sourceType']
+                    )
+                  }
+                  className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none"
+                >
+                  <option value="official">Official Title Artwork (Studio Key Art / Poster)</option>
+                  <option value="licensed">Licensed Editorial Stock</option>
+                  <option value="creative-commons">Creative Commons (Permitted Usage)</option>
+                  <option value="public-domain">Public Domain</option>
+                  <option value="branded-fallback">The Abstract Take Branded Fallback</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase text-gray-700 font-bold mb-1">
+                  Source Name / Studio Attribution
+                </label>
+                <input
+                  type="text"
+                  value={artworkSourceName}
+                  onChange={(e) => setArtworkSourceName(e.target.value)}
+                  placeholder="e.g. A24 / Warner Bros. Press Kit"
+                  className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none"
+                />
+              </div>
+
+              <label className="flex items-center space-x-2 text-xs font-medium text-gray-700 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={isArtworkVerified}
+                  onChange={(e) => setIsArtworkVerified(e.target.checked)}
+                  className="rounded text-[#008CFF] focus:ring-[#008CFF]"
+                />
+                <span>Verified for Publication & Correct Title Matching</span>
+              </label>
             </div>
           </div>
 

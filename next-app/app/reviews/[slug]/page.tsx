@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { db } from '@/lib/db';
 import { AbstractScoreBadge } from '@/components/ui/AbstractScoreBadge';
+import { ReviewArtwork } from '@/components/ui/ReviewArtwork';
 import { SpoilerSection } from '@/components/reviews/SpoilerSection';
 import { InteractiveActions } from '@/components/reviews/InteractiveActions';
 import { ArrowLeft, CheckCircle2, XCircle, Quote } from 'lucide-react';
@@ -113,10 +114,20 @@ export default async function ReviewDetailPage({ params }: ReviewPageProps) {
         </header>
 
         {/* Hero Poster / Banner */}
-        <div className="relative aspect-16/9 rounded-3xl overflow-hidden bg-gray-100 mb-10 shadow-sm">
-          <img
-            src={review.bannerUrl || review.posterUrl}
-            alt={review.title}
+        <div className="relative aspect-16/9 rounded-3xl overflow-hidden bg-gray-900 mb-10 shadow-sm">
+          <ReviewArtwork
+            title={review.title}
+            releaseYear={review.releaseYear}
+            type={review.type}
+            slug={review.slug}
+            posterUrl={review.posterUrl}
+            bannerUrl={review.bannerUrl}
+            artwork={review.artwork}
+            abstractScore={review.abstractScore}
+            preferredType="backdrop"
+            aspectRatio="landscape"
+            priority={true}
+            alt={review.bannerAlt || review.posterAlt || review.title}
             className="w-full h-full object-cover"
           />
         </div>

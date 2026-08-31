@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { db } from '../lib/db';
 import { AbstractScoreBadge } from '../components/ui/AbstractScoreBadge';
 import { ReviewCard } from '../components/ui/ReviewCard';
+import { ReviewArtwork } from '../components/ui/ReviewArtwork';
 import { BookmarkButton } from '../components/bookmarks/BookmarkButton';
 import { normalizeScore } from '../lib/utils/rating';
 import {
@@ -112,10 +113,20 @@ export default async function HomePage() {
                 href={`/reviews/${latestTake.slug}`}
                 className="block relative aspect-[16/9] w-full rounded-2xl overflow-hidden border border-gray-100 cursor-pointer group bg-gray-900 shadow-sm"
               >
-                <img
-                  src={latestTake.bannerUrl || latestTake.posterUrl}
+                <ReviewArtwork
+                  title={latestTake.title}
+                  releaseYear={latestTake.releaseYear}
+                  type={latestTake.type}
+                  slug={latestTake.slug}
+                  posterUrl={latestTake.posterUrl}
+                  bannerUrl={latestTake.bannerUrl}
+                  artwork={latestTake.artwork}
+                  abstractScore={latestTake.abstractScore}
+                  preferredType="backdrop"
+                  aspectRatio="landscape"
+                  priority
                   alt={latestTake.bannerAlt || latestTake.title}
-                  className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500 opacity-95"
+                  className="w-full h-full group-hover:scale-102 transition-transform duration-500 opacity-95"
                 />
                 <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md text-white font-mono text-[10px] font-bold uppercase px-2.5 py-1 rounded-lg border border-white/10 shadow-xs">
                   {latestTake.runtime} • {latestTake.genres?.join(', ')}
@@ -186,10 +197,19 @@ export default async function HomePage() {
                       href={`/reviews/${rev.slug}`}
                       className="flex gap-3 cursor-pointer group border-b border-gray-100 pb-3.5 last:border-b-0"
                     >
-                      <img
-                        src={rev.posterUrl}
+                      <ReviewArtwork
+                        title={rev.title}
+                        releaseYear={rev.releaseYear}
+                        type={rev.type}
+                        slug={rev.slug}
+                        posterUrl={rev.posterUrl}
+                        bannerUrl={rev.bannerUrl}
+                        artwork={rev.artwork}
+                        abstractScore={rev.abstractScore}
+                        preferredType="poster"
+                        aspectRatio="auto"
                         alt={rev.posterAlt || rev.title}
-                        className="w-16 h-24 object-cover rounded-xl border border-gray-200/80 flex-shrink-0 group-hover:scale-105 transition-transform shadow-2xs"
+                        className="w-16 h-24 rounded-xl border border-gray-200/80 flex-shrink-0 group-hover:scale-105 transition-transform shadow-2xs"
                       />
                       <div className="space-y-1 flex-1">
                         <div className="flex items-center justify-between">
@@ -393,10 +413,19 @@ export default async function HomePage() {
                     className="bg-gray-50/70 border border-gray-200/80 rounded-2xl p-4 cursor-pointer group hover:border-[#008CFF] hover:bg-white hover:shadow-lg transition-all space-y-3 block"
                   >
                     <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-gray-900 border border-gray-100 shadow-2xs">
-                      <img
-                        src={rev.bannerUrl || rev.posterUrl}
+                      <ReviewArtwork
+                        title={rev.title}
+                        releaseYear={rev.releaseYear}
+                        type={rev.type}
+                        slug={rev.slug}
+                        posterUrl={rev.posterUrl}
+                        bannerUrl={rev.bannerUrl}
+                        artwork={rev.artwork}
+                        abstractScore={rev.abstractScore}
+                        preferredType="backdrop"
+                        aspectRatio="landscape"
                         alt={rev.bannerAlt || rev.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-90"
+                        className="w-full h-full group-hover:scale-105 transition-transform duration-300 opacity-90"
                       />
                       <div className="absolute top-2 left-2 bg-[#008CFF] text-white text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded shadow-xs">
                         SCORE {score}/10

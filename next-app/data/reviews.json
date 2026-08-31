@@ -13,8 +13,8 @@
       "Series",
       "Cinema"
     ],
-    "posterUrl": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/pPHpeI2X1qEd1CS1SeyrdhZ4qnT.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/ixgFmf1X59PUZam2qbAfskx2gQr.jpg",
     "abstractScore": 10,
     "myTake": "Severance (Season 2) earns an authoritative 10/10 on The Abstract Take.",
     "streamingPlatforms": [
@@ -66,10 +66,17 @@
         "Score 10"
       ],
       "slug": "severance-season-2",
-      "ogImage": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop"
+      "ogImage": "https://image.tmdb.org/t/p/w1280/ixgFmf1X59PUZam2qbAfskx2gQr.jpg"
     },
     "source": "google_sheets_automation",
-    "automationRowId": "sheet-row-99"
+    "automationRowId": "sheet-row-99",
+    "artwork": {
+      "poster": "https://image.tmdb.org/t/p/w780/pPHpeI2X1qEd1CS1SeyrdhZ4qnT.jpg",
+      "backdrop": "https://image.tmdb.org/t/p/w1280/ixgFmf1X59PUZam2qbAfskx2gQr.jpg",
+      "sourceType": "official",
+      "sourceName": "Apple TV+ Official Key Art & Promotional Assets",
+      "verified": true
+    }
   },
   {
     "id": "review-1",
@@ -92,8 +99,8 @@
       "Adventure",
       "Drama"
     ],
-    "posterUrl": "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/6izwz7rsy95ARzTR3poZ8H6c5pp.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/eZ239CUp1d6OryZEBPnO2n87gMG.jpg",
     "abstractScore": 10,
     "myTake": "A monumental sci-fi tragedy where spectacle never overshadows the terrifying corruptive weight of charismatic prophecy.",
     "streamingPlatforms": [
@@ -156,9 +163,17 @@
         "The Abstract Take",
         "Denis Villeneuve",
         "Sci-Fi Masterpiece"
-      ]
+      ],
+      "ogImage": "https://image.tmdb.org/t/p/w1280/eZ239CUp1d6OryZEBPnO2n87gMG.jpg"
     },
-    "status": "published"
+    "status": "published",
+    "artwork": {
+      "poster": "https://image.tmdb.org/t/p/w780/6izwz7rsy95ARzTR3poZ8H6c5pp.jpg",
+      "backdrop": "https://image.tmdb.org/t/p/w1280/eZ239CUp1d6OryZEBPnO2n87gMG.jpg",
+      "sourceType": "official",
+      "sourceName": "Warner Bros. / Legendary Pictures Promotional Key Art",
+      "verified": true
+    }
   },
   {
     "id": "review-2",
@@ -179,8 +194,8 @@
       "Drama",
       "Art House"
     ],
-    "posterUrl": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/znXps7wPyYq8UDCfeyO2vfEIeRS.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/r6aqhlmJmu8Dv5E7QYEruaEXKYm.jpg",
     "abstractScore": 10,
     "myTake": "The red Saab 900 Turbo is cinema’s most sacred confessional booth. An unhurried, breathtaking exploration of grief and unspoken truth.",
     "streamingPlatforms": [
@@ -243,9 +258,17 @@
         "Hamaguchi",
         "Japanese Cinema",
         "The Abstract Take"
-      ]
+      ],
+      "ogImage": "https://image.tmdb.org/t/p/w1280/r6aqhlmJmu8Dv5E7QYEruaEXKYm.jpg"
     },
-    "status": "published"
+    "status": "published",
+    "artwork": {
+      "poster": "https://image.tmdb.org/t/p/w780/znXps7wPyYq8UDCfeyO2vfEIeRS.jpg",
+      "backdrop": "https://image.tmdb.org/t/p/w1280/r6aqhlmJmu8Dv5E7QYEruaEXKYm.jpg",
+      "sourceType": "official",
+      "sourceName": "Bitters End / Sideshow / Janus Films Theatrical Poster",
+      "verified": true
+    }
   },
   {
     "id": "review-3",
@@ -267,8 +290,8 @@
       "Thriller",
       "Mystery"
     ],
-    "posterUrl": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/pPHpeI2X1qEd1CS1SeyrdhZ4qnT.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/ixgFmf1X59PUZam2qbAfskx2gQr.jpg",
     "abstractScore": 9,
     "myTake": "A chilling architectural triumph that turns sterile fluorescent hallways into a brilliant psychological battleground of human identity.",
     "streamingPlatforms": [
@@ -320,9 +343,17 @@
         "Apple TV Plus",
         "Adam Scott",
         "Sci-Fi Series"
-      ]
+      ],
+      "ogImage": "https://image.tmdb.org/t/p/w1280/ixgFmf1X59PUZam2qbAfskx2gQr.jpg"
     },
-    "status": "published"
+    "status": "published",
+    "artwork": {
+      "poster": "https://image.tmdb.org/t/p/w780/pPHpeI2X1qEd1CS1SeyrdhZ4qnT.jpg",
+      "backdrop": "https://image.tmdb.org/t/p/w1280/ixgFmf1X59PUZam2qbAfskx2gQr.jpg",
+      "sourceType": "official",
+      "sourceName": "Apple TV+ Official Key Art & Promotional Assets",
+      "verified": true
+    }
   },
   {
     "id": "review-4",
@@ -344,8 +375,8 @@
       "Fantasy",
       "Adventure"
     ],
-    "posterUrl": "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/f4oZTcfGrVTXKTWg157AwikXqmP.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/75nSb1fbWooipwcSU5bUttiOriI.jpg",
     "abstractScore": 10,
     "myTake": "Miyazaki’s rawest, most surreal autobiographical confession—a grandfather handing over the building blocks of a broken world.",
     "streamingPlatforms": [
@@ -404,9 +435,17 @@
         "Miyazaki",
         "Studio Ghibli",
         "Anime Review"
-      ]
+      ],
+      "ogImage": "https://image.tmdb.org/t/p/w1280/75nSb1fbWooipwcSU5bUttiOriI.jpg"
     },
-    "status": "published"
+    "status": "published",
+    "artwork": {
+      "poster": "https://image.tmdb.org/t/p/w780/f4oZTcfGrVTXKTWg157AwikXqmP.jpg",
+      "backdrop": "https://image.tmdb.org/t/p/w1280/75nSb1fbWooipwcSU5bUttiOriI.jpg",
+      "sourceType": "official",
+      "sourceName": "Studio Ghibli / Toho Official Theatrical Key Art",
+      "verified": true
+    }
   },
   {
     "id": "review-5",
@@ -426,8 +465,8 @@
       "Romance",
       "Drama"
     ],
-    "posterUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/k3waqVXSnvCZWfJYNtdamTgTtTA.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/7HR38hMBl23lf38MAN63y4pKsHz.jpg",
     "abstractScore": 9,
     "myTake": "A profoundly delicate exploration of in-yeon, roads not taken, and the lingering ache of immigrant displacement.",
     "streamingPlatforms": [
@@ -479,10 +518,17 @@
         "Score 9"
       ],
       "slug": "past-lives-2023",
-      "ogImage": "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1600&auto=format&fit=crop"
+      "ogImage": "https://image.tmdb.org/t/p/w1280/7HR38hMBl23lf38MAN63y4pKsHz.jpg"
     },
     "source": "google_sheets_automation",
-    "automationRowId": "row-101"
+    "automationRowId": "row-101",
+    "artwork": {
+      "poster": "https://image.tmdb.org/t/p/w780/k3waqVXSnvCZWfJYNtdamTgTtTA.jpg",
+      "backdrop": "https://image.tmdb.org/t/p/w1280/7HR38hMBl23lf38MAN63y4pKsHz.jpg",
+      "sourceType": "official",
+      "sourceName": "A24 / CJ ENM Key Art & Promotional Stills",
+      "verified": true
+    }
   },
   {
     "id": "review-6",
@@ -501,8 +547,8 @@
       "Drama",
       "Slice of Life"
     ],
-    "posterUrl": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=800&auto=format&fit=crop",
-    "bannerUrl": "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=1600&auto=format&fit=crop",
+    "posterUrl": "https://image.tmdb.org/t/p/w780/tvUHVSTJV9ITON3oyHaWp7oaAc8.jpg",
+    "bannerUrl": "https://image.tmdb.org/t/p/w1280/hjWxngV6tidwDkfJDEgMjHD2KEz.jpg",
     "abstractScore": 9,
     "myTake": "An antidote to digital hustle culture. Koji Yakusho turns daily routine into pure spiritual architecture.",
     "streamingPlatforms": [
@@ -555,8 +601,16 @@
         "Koji Yakusho",
         "Wim Wenders",
         "Tokyo Cinema"
-      ]
+      ],
+      "ogImage": "https://image.tmdb.org/t/p/w1280/hjWxngV6tidwDkfJDEgMjHD2KEz.jpg"
     },
-    "status": "published"
+    "status": "published",
+    "artwork": {
+      "poster": "https://image.tmdb.org/t/p/w780/tvUHVSTJV9ITON3oyHaWp7oaAc8.jpg",
+      "backdrop": "https://image.tmdb.org/t/p/w1280/hjWxngV6tidwDkfJDEgMjHD2KEz.jpg",
+      "sourceType": "official",
+      "sourceName": "NEON / Master Mind Ltd Theatrical Key Art",
+      "verified": true
+    }
   }
 ]

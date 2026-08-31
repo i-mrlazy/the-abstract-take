@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Review } from '../../types';
 import { AbstractScoreBadge } from './AbstractScoreBadge';
 import { BookmarkButton } from '../bookmarks/BookmarkButton';
+import { ReviewArtwork } from './ReviewArtwork';
 import { Clock } from 'lucide-react';
 
 interface ReviewCardProps {
@@ -10,16 +11,24 @@ interface ReviewCardProps {
   priority?: boolean;
 }
 
-export function ReviewCard({ review }: ReviewCardProps) {
+export function ReviewCard({ review, priority = false }: ReviewCardProps) {
   return (
     <article className="group bg-white border border-gray-200/90 rounded-2xl overflow-hidden hover:border-[#008CFF]/50 hover:shadow-md transition-all duration-200 flex flex-col justify-between">
       <div className="relative aspect-16/10 overflow-hidden bg-gray-100">
         <Link href={`/reviews/${review.slug}`} className="block w-full h-full">
-          <img
-            src={review.posterUrl}
+          <ReviewArtwork
+            title={review.title}
+            releaseYear={review.releaseYear}
+            type={review.type}
+            slug={review.slug}
+            posterUrl={review.posterUrl}
+            bannerUrl={review.bannerUrl}
+            artwork={review.artwork}
+            abstractScore={review.abstractScore}
+            aspectRatio="auto"
             alt={review.posterAlt || review.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-            loading="lazy"
+            priority={priority}
+            className="w-full h-full group-hover:scale-105 transition-transform duration-500 ease-out"
           />
         </Link>
         <div className="absolute top-3 left-3 z-10">
