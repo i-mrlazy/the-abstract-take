@@ -17,8 +17,10 @@ import {
   Archive,
   FileText,
   ExternalLink,
+  Upload,
 } from 'lucide-react';
 import { ReviewLivePreviewModal } from './ReviewLivePreviewModal';
+import { BulkImportModal } from './BulkImportModal';
 
 interface ReviewsTableProps {
   initialReviews: Review[];
@@ -34,6 +36,7 @@ export function ReviewsTable({ initialReviews }: ReviewsTableProps) {
   const [previewReview, setPreviewReview] = useState<Review | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Filter & Sort
   const filteredReviews = reviews
@@ -177,13 +180,24 @@ export function ReviewsTable({ initialReviews }: ReviewsTableProps) {
           </p>
         </div>
 
-        <Link
-          href="/admin/reviews/new"
-          className="px-4 py-2.5 bg-[#008CFF] hover:bg-[#0077dd] text-white font-sans font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs flex items-center justify-center space-x-2 transition-all shrink-0"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>Write New Review</span>
-        </Link>
+        <div className="flex items-center space-x-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-sans font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs border border-gray-200"
+          >
+            <Upload className="w-3.5 h-3.5 text-[#008CFF]" />
+            <span>Import from Pipeline</span>
+          </button>
+
+          <Link
+            href="/admin/reviews/new"
+            className="px-4 py-2.5 bg-[#008CFF] hover:bg-[#0077dd] text-white font-sans font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs flex items-center justify-center space-x-2 transition-all shrink-0"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Write New Review</span>
+          </Link>
+        </div>
       </div>
 
       {/* Filter and Search Controls */}
@@ -389,6 +403,16 @@ export function ReviewsTable({ initialReviews }: ReviewsTableProps) {
           onClose={() => setPreviewReview(null)}
         />
       )}
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => {
+          setIsImportModalOpen(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

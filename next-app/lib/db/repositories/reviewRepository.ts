@@ -55,6 +55,7 @@ export function mapDbToReview(row: any): Review {
     isHiddenGem: Boolean(row.is_hidden_gem),
     artwork: row.artwork || undefined,
     recommendationMetadata: row.recommendation_metadata || row.recommendationMetadata || undefined,
+    generationMetadata: row.generation_metadata || row.generationMetadata || undefined,
     synopsis: row.synopsis || undefined,
     trailerUrl: row.trailer_url || undefined,
     language: row.language || undefined,
@@ -114,6 +115,7 @@ export function mapReviewToDb(r: Review): any {
     is_hidden_gem: Boolean(r.isHiddenGem),
     artwork: r.artwork || null,
     recommendation_metadata: r.recommendationMetadata || null,
+    generation_metadata: r.generationMetadata || null,
     synopsis: r.synopsis || null,
     trailer_url: r.trailerUrl || null,
     language: r.language || null,
@@ -285,37 +287,22 @@ export class ReviewRepository {
     }
     review.abstractScore = normalizeScore(review.abstractScore);
 
-    if (process.env.NODE_ENV === 'production') {
-      if (!isServerSupabaseConfigured()) {
-        throw new Error('[DATABASE FATAL] Supabase PostgreSQL is required in production, but is not configured.');
-      }
+    if (isServerSupabaseConfigured()) {
       const supabase = getServerSupabaseClient();
-      if (!supabase) {
-        throw new Error('[DATABASE FATAL] Failed to initialize Supabase client in production.');
+      if (supabase) {
+        const dbPayload = mapReviewToDb(review);
+        const { data, error } = await supabase.from('reviews').upsert(dbPayload).select().single();
+        if (error) {
+          throw new Error(`[DATABASE ERROR] Supabase createReview failed: ${error.message}`);
+        }
+        return mapDbToReview(data || dbPayload);
       }
-      const dbPayload = mapReviewToDb(review);
-      const { data, error } = await supabase.from('reviews').upsert(dbPayload).select().single();
-      if (error) {
-        throw new Error(`[DATABASE ERROR] Supabase createReview failed: ${error.message}`);
-      }
-      return mapDbToReview(data || dbPayload);
     }
 
-    // Development only: Local JSON fallback
+    // Local JSON storage
     const reviews = readJsonFile<Review[]>(REVIEWS_FILE, []);
     const updated = [review, ...reviews.filter((r) => r.id !== review.id)];
     writeJsonFile(REVIEWS_FILE, updated);
-
-    if (isServerSupabaseConfigured()) {
-      const supabase = getServerSupabaseClient();
-      supabase
-        ?.from('reviews')
-        .upsert(mapReviewToDb(review))
-        .then(({ error }) => {
-          if (error) console.error('Supabase dev review sync error:', error);
-        });
-    }
-
     return review;
   }
 
@@ -323,23 +310,19 @@ export class ReviewRepository {
     review.abstractScore = normalizeScore(review.abstractScore);
     review.updatedDate = new Date().toISOString().split('T')[0];
 
-    if (process.env.NODE_ENV === 'production') {
-      if (!isServerSupabaseConfigured()) {
-        throw new Error('[DATABASE FATAL] Supabase PostgreSQL is required in production, but is not configured.');
-      }
+    if (isServerSupabaseConfigured()) {
       const supabase = getServerSupabaseClient();
-      if (!supabase) {
-        throw new Error('[DATABASE FATAL] Failed to initialize Supabase client in production.');
+      if (supabase) {
+        const dbPayload = mapReviewToDb(review);
+        const { data, error } = await supabase.from('reviews').upsert(dbPayload).select().single();
+        if (error) {
+          throw new Error(`[DATABASE ERROR] Supabase updateReview failed: ${error.message}`);
+        }
+        return mapDbToReview(data || dbPayload);
       }
-      const dbPayload = mapReviewToDb(review);
-      const { data, error } = await supabase.from('reviews').upsert(dbPayload).select().single();
-      if (error) {
-        throw new Error(`[DATABASE ERROR] Supabase updateReview failed: ${error.message}`);
-      }
-      return mapDbToReview(data || dbPayload);
     }
 
-    // Development only: Local JSON fallback
+    // Local JSON storage
     const reviews = readJsonFile<Review[]>(REVIEWS_FILE, []);
     const index = reviews.findIndex((r) => r.id === review.id);
     if (index === -1) {
@@ -347,52 +330,25 @@ export class ReviewRepository {
     }
     reviews[index] = review;
     writeJsonFile(REVIEWS_FILE, reviews);
-
-    if (isServerSupabaseConfigured()) {
-      const supabase = getServerSupabaseClient();
-      supabase
-        ?.from('reviews')
-        .upsert(mapReviewToDb(review))
-        .then(({ error }) => {
-          if (error) console.error('Supabase dev review update error:', error);
-        });
-    }
-
     return review;
   }
 
   async deleteReview(id: string): Promise<boolean> {
-    if (process.env.NODE_ENV === 'production') {
-      if (!isServerSupabaseConfigured()) {
-        throw new Error('[DATABASE FATAL] Supabase PostgreSQL is required in production, but is not configured.');
-      }
-      const supabase = getServerSupabaseClient();
-      if (!supabase) {
-        throw new Error('[DATABASE FATAL] Failed to initialize Supabase client in production.');
-      }
-      const { error } = await supabase.from('reviews').delete().eq('id', id);
-      if (error) {
-        throw new Error(`[DATABASE ERROR] Supabase deleteReview failed: ${error.message}`);
-      }
-      return true;
-    }
-
-    // Development only: Local JSON fallback
-    const reviews = readJsonFile<Review[]>(REVIEWS_FILE, []);
-    const filtered = reviews.filter((r) => r.id !== id);
-    writeJsonFile(REVIEWS_FILE, filtered);
-
     if (isServerSupabaseConfigured()) {
       const supabase = getServerSupabaseClient();
-      supabase
-        ?.from('reviews')
-        .delete()
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) console.error('Supabase dev review delete error:', error);
-        });
+      if (supabase) {
+        const { error } = await supabase.from('reviews').delete().eq('id', id);
+        if (error) {
+          throw new Error(`[DATABASE ERROR] Supabase deleteReview failed: ${error.message}`);
+        }
+        return true;
+      }
     }
 
+    // Local JSON storage
+    const reviews = readJsonFile<Review[]>(REVIEWS_FILE, []);
+    const filtered = reviews.filter((r) => r.id !== id && r.slug !== id);
+    writeJsonFile(REVIEWS_FILE, filtered);
     return true;
   }
 

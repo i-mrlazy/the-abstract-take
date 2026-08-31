@@ -96,6 +96,16 @@ export interface Review {
     pacing?: string;
     audienceExperience?: string[];
   };
+  generationMetadata?: {
+    source?: 'editorial-memory-pipeline' | 'manual' | 'ai-assistant';
+    founderScore?: boolean;
+    founderNotesProvided?: boolean;
+    targetLength?: 'Quick Take' | 'Standard Take' | 'Deep Take' | 'Essay';
+    requiresEditorialApproval?: boolean;
+    generatedAt?: string;
+    approvedAt?: string;
+    approvedBy?: string;
+  };
   source?: 'manual' | 'google_sheets_automation';
   automationRowId?: string;
   createdAt?: string;

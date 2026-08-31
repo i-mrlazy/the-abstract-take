@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processEditorialDraft } from '@/lib/editorial/assistant';
+import { generateEditorialMemoryReview, EditorialMemoryInput } from '@/lib/editorial/memoryPipeline';
 import { validateAutomationSecret } from '@/lib/auth';
 import { MediaType } from '@/types';
 
@@ -18,85 +18,106 @@ export async function POST(req: NextRequest) {
       releaseYear,
       year,
       contentType,
+      type,
       rating,
+      abstractScore,
       rawTake,
+      myTake,
       likes,
+      whatWorked,
       dislikes,
+      whatDidnt,
       personalVerdict,
+      favoriteScene,
+      favoriteQuote,
+      memoryNotes,
+      viewingExperience,
+      targetLength,
       additionalNotes,
+      originalTitle,
+      director,
+      cast,
+      runtime,
+      genres,
+      themes,
+      moods,
       externalId,
       rowId,
     } = body;
 
     const actualTitle = title ? String(title).trim() : '';
-    const actualRawTake = rawTake ? String(rawTake).trim() : '';
-    const actualVerdict = personalVerdict ? String(personalVerdict).trim() : '';
-
-    if (!actualTitle || !actualRawTake || !actualVerdict) {
+    if (!actualTitle) {
       return NextResponse.json(
         {
-          error: 'MissingRequiredFields',
-          message: 'Title, My Raw Take, and Personal Verdict are required for editorial generation.',
+          error: 'MissingTitle',
+          message: 'Title is required for editorial review generation.',
         },
         { status: 400 }
       );
     }
 
-    const normScore = Math.max(1, Math.min(10, Math.round(Number(rating) || 8)));
-    const cleanType: MediaType = (contentType as MediaType) || 'Movie';
+    const normScore = Math.max(1, Math.min(10, Math.round(Number(abstractScore || rating) || 8)));
+    const cleanType: MediaType = (contentType || type || 'Movie') as MediaType;
     const cleanYear = Number(releaseYear || year) || new Date().getFullYear();
 
-    const draftResult = await processEditorialDraft({
+    const memoryInput: EditorialMemoryInput = {
       title: actualTitle,
-      year: cleanYear,
+      releaseYear: cleanYear,
       contentType: cleanType,
       rating: normScore,
-      rawTake: actualRawTake,
-      likes: likes ? String(likes) : undefined,
-      dislikes: dislikes ? String(dislikes) : undefined,
-      personalVerdict: actualVerdict,
-      verifiedFacts: additionalNotes ? String(additionalNotes) : undefined,
-      contextualBackground: externalId ? `External ID: ${externalId}` : undefined,
-    });
+      rawTake: rawTake ? String(rawTake).trim() : myTake ? String(myTake).trim() : undefined,
+      likes: whatWorked || likes,
+      dislikes: whatDidnt || dislikes,
+      personalVerdict: personalVerdict ? String(personalVerdict).trim() : undefined,
+      favoriteScene: favoriteScene ? String(favoriteScene).trim() : undefined,
+      favoriteQuote: favoriteQuote ? String(favoriteQuote).trim() : undefined,
+      memoryNotes: memoryNotes ? String(memoryNotes).trim() : viewingExperience ? String(viewingExperience).trim() : additionalNotes ? String(additionalNotes).trim() : undefined,
+      targetLength: targetLength || 'Standard Take',
+      originalTitle: originalTitle ? String(originalTitle).trim() : undefined,
+      director: director ? String(director).trim() : undefined,
+      cast: cast || undefined,
+      runtime: runtime ? String(runtime).trim() : undefined,
+      genres: genres || undefined,
+      themes: themes || undefined,
+      moods: moods || undefined,
+      externalId: externalId ? String(externalId).trim() : undefined,
+      rowId: rowId ? String(rowId) : undefined,
+    };
 
-    const tags = [
-      cleanType,
-      `${cleanType} Review`,
-      'The Abstract Take',
-      normScore >= 9 ? 'Masterpiece' : normScore >= 8 ? 'Must Watch' : 'Editorial Review',
-    ];
+    const generated = await generateEditorialMemoryReview(memoryInput);
 
-    const seoDescription = draftResult.myTakeHook
-      ? `The Abstract Take's review of ${actualTitle}: "${draftResult.myTakeHook.slice(0, 140)}..." Score: ${normScore}/10.`
-      : `Editorial review and Abstract Score (${normScore}/10) for ${actualTitle} (${cleanYear}).`;
+    const sourceLabel = generated.generationMetadata.source === 'editorial-memory-pipeline' ? 'Gemini 2.5 Flash' : 'Fallback Engine';
+    const notes = `Generated via ${sourceLabel} · Grounded strictly in founder signals (Score: ${normScore}/10)`;
 
-    const sourceLabel = draftResult.generationSource === 'gemini' ? 'Gemini' : 'Fallback';
-    const notes = draftResult.generationNote || (draftResult.generationSource === 'gemini'
-      ? 'Generated via Gemini 2.5 Flash Editorial Assistant'
-      : 'Gemini unavailable — deterministic fallback draft generated');
+    // Preview snippet for Google Sheets
+    const previewText = `${generated.headline}\n\n${generated.longFormReview}\n\nVerdict: ${generated.verdictText}`;
 
     return NextResponse.json({
       success: true,
       rowId,
-      status: 'Review generated',
+      generationStatus: 'GENERATED',
+      editorialStatus: 'AI_DRAFT_READY',
       generationSource: sourceLabel,
       automationNotes: notes,
+      generatedJson: JSON.stringify(generated),
+      generatedPreview: previewText,
       data: {
-        title: actualTitle,
-        releaseYear: cleanYear,
-        contentType: cleanType,
-        rating: normScore,
-        headline: draftResult.headline,
-        editorialReview: draftResult.editorialReview,
-        pros: draftResult.pros.join('\n'),
-        cons: draftResult.cons.join('\n'),
-        verdict: draftResult.verdictText,
-        seoDescription,
-        tags: tags.join(', '),
-        shouldYouWatch: draftResult.shouldYouWatch,
-        myTakeHook: draftResult.myTakeHook,
-        generationSource: sourceLabel,
-        automationNotes: notes,
+        title: generated.title,
+        originalTitle: generated.originalTitle,
+        releaseYear: generated.releaseYear,
+        contentType: generated.type,
+        rating: generated.abstractScore,
+        headline: generated.headline,
+        editorialReview: generated.longFormReview,
+        pros: generated.pros.join('\n'),
+        cons: generated.cons.join('\n'),
+        verdict: generated.verdictText,
+        seoDescription: generated.seoDescription,
+        tags: generated.tags.join(', '),
+        shouldYouWatch: generated.shouldYouWatch,
+        myTakeHook: generated.myTake,
+        recommendationMetadata: generated.recommendationMetadata,
+        generationMetadata: generated.generationMetadata,
         status: 'Review generated',
       },
     });
@@ -105,6 +126,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: 'GenerationFailed',
+        generationStatus: 'GENERATION_FAILED',
         message: err.message || 'Failed to generate editorial review.',
       },
       { status: 500 }

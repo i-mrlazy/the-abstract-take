@@ -1,185 +1,170 @@
-# 📊 The Abstract Take — Editorial Automation & Google Sheets Engine
+# 📊 The Abstract Take — Editorial Memory Capture & Bulk Pipeline Engine (Phase 5.3)
 
-A robust, enterprise-grade serverless automation pipeline for bulk film/TV review generation and direct production publishing.
+An authoritative, production-grade Google Sheets editorial automation pipeline for **The Abstract Take** film and television critique publication.
 
 ---
 
-## 🏗️ Architecture & Philosophy
+## 🏗️ 1. Architecture & Editorial Philosophy
 
-The Abstract Take uses a **creator-first editorial model** and a **commercial-safe, independent first-party metadata architecture**:
+The Abstract Take operates on a **creator-first editorial model** and a **strict score authority framework**:
 
-1. **Creator Opinion is Supreme**: The creator's numerical rating, raw take, likes, dislikes, and personal verdict are the sole authority.
-2. **First-Party Metadata Database**: The website stores and serves all editorial content directly from Supabase. No commercial external metadata provider (such as TMDB) is required to operate, generate, or publish reviews.
-3. **Optional AI Assistance**: Gemini 2.5 Flash acts as a high-fidelity drafting assistant that structures the creator's raw thoughts without inventing consensus or overwriting human critiques.
-4. **Hard Human Approval Gate**: Automation *never* auto-publishes without explicit creator approval (`Status: "Publish it"`).
+1. **Strict Score Authority (Authoritative)**: The founder's Abstract Score (1–10) is absolute. AI is never permitted to modify or second-guess the score. The generated tone, critique, pros, cons, and verdict are calibrated strictly to match the score tier (10/10 vs 7/10 vs 4/10).
+2. **Editorial Memory Signals**: The founder inputs rough viewing reactions (likes, dislikes, emotional reactions, pacing, favorite moments). AI structures these signals into a polished critique **without fabricating personal memories or unmentioned viewing experiences**.
+3. **Mandatory Human Approval & CMS Draft Ingestion**: Generated reviews are never published directly. All imported reviews enter the CMS database as **`draft`**, allowing the founder to perform the final editorial audit, adjust signals, and publish on demand.
+4. **Independent First-Party Schema**: All metadata is self-contained and adheres to The Abstract Take 1–10 taxonomy, artwork provenance, and recommendation profile architecture.
 
 ```
-+-------------------------------------------------------------+
-| 1. CREATOR INPUT (Google Sheet / CMS)                       |
-|    - Title, Release Year, Content Type, Rating              |
-|    - Raw Take, Likes, Dislikes, Personal Verdict            |
-|    - Status: "Pending"                                      |
-+------------------------------+------------------------------+
-                               |
-                               v
-+-------------------------------------------------------------+
-| 2. GEMINI EDITORIAL SYNTHESIS (/api/automation/generate)    |
-|    - Polishes ~250–300 word review matching creator's voice |
-|    - Extracts Pros, Cons, Headline, SEO summary, Tags       |
-|    - Sets Status: "Review generated"                        |
-+------------------------------+------------------------------+
-                               |
-                               v
-+-------------------------------------------------------------+
-| 3. CREATOR AUDIT & MANUAL APPROVAL GATE                     |
-|    - Creator reads the generated text in Google Sheet       |
-|    - Manually switches Status to: "Publish it"              |
-+------------------------------+------------------------------+
-                               |
-                               v
-+-------------------------------------------------------------+
-| 4. PRODUCTION INGESTION & PUBLICATION (/api/automation/pub) |
-|    - Idempotency check (No duplicates created)              |
-|    - First-party Supabase database ingestion                |
-|    - Live immediately across Home, Categories, Tags, Search |
-|    - Sets Status: "Published" & writes Live URL             |
-+-------------------------------------------------------------+
-```
-
----
-
-## 📋 1. Google Sheet Column Layout
-
-### Standard 21-Column Baseline (Fully Supported & Authoritative)
-
-| # | Column Name | Required? | Description & Examples |
-|---|---|---|---|
-| **A** (1) | `TITLE` | **Yes** | e.g. `Dune: Part Two`, `Challengers`, `Severance` |
-| **B** (2) | `RELEASE YEAR` | **Yes** | e.g. `2024` |
-| **C** (3) | `CONTENT TYPE` | **Yes** | Dropdown: `Movie`, `Series`, `Mini Series`, `Anime`, `Documentary`, `Special` |
-| **D** (4) | `EXTERNAL MEDIA ID` | No | Optional reference ID (e.g. `tt15239678` or IMDb ID) |
-| **E** (5) | `RATING` | **Yes** | Creator's authoritative score from `1` to `10` |
-| **F** (6) | `MY RAW TAKE` | **Yes** | Unfiltered creator impressions, thoughts, pacing, direction notes |
-| **G** (7) | `THINGS I LIKED` | No | Specific strengths (e.g. `Hans Zimmer score, Austin Butler performance`) |
-| **H** (8) | `THINGS I DIDN'T LIKE` | No | Specific critiques (e.g. `Rushed final 15 minutes`) |
-| **I** (9) | `PERSONAL VERDICT` | **Yes** | Closing takeaway (e.g. `A towering modern sci-fi classic.`) |
-| **J** (10) | `ADDITIONAL NOTES` | No | Technical details, facts, or adaptation background |
-| **K** (11) | `GENERATED HEADLINE` | *Auto* | Populated by Gemini |
-| **L** (12) | `GENERATED REVIEW` | *Auto* | Populated by Gemini (~250–300 words) |
-| **M** (13) | `GENERATED PROS` | *Auto* | Extracted highlights (one per line) |
-| **N** (14) | `GENERATED CONS` | *Auto* | Extracted critiques (one per line) |
-| **O** (15) | `GENERATED VERDICT` | *Auto* | Formatted verdict text |
-| **P** (16) | `GENERATED SEO DESCRIPTION` | *Auto* | Meta description for search engines |
-| **Q** (17) | `GENERATED TAGS` | *Auto* | Comma-separated editorial tags |
-| **R** (18) | `STATUS` | **Yes** | Dropdown: `Pending`, `Review generated`, `Publish it`, `Published` |
-| **S** (19) | `PUBLISHED URL` | *Auto* | Live website URL written after publication |
-| **T** (20) | `LAST PROCESSED` | *Auto* | ISO timestamp of last automation activity |
-| **U** (21) | `AUTOMATION NOTES` | *Auto* | Diagnostic logs, error messages, or publication confirmation |
-
-### Optional Extended Metadata Columns (Placed After Column 21)
-
-To supply custom metadata directly from Google Sheets without depending on external lookup engines:
-
-| Column | Name | Optional? | Description |
-|---|---|---|---|
-| **V** (22) | `DIRECTOR` | Optional | Director / Creator full name |
-| **W** (23) | `CAST` | Optional | Comma-separated lead actors |
-| **X** (24) | `GENRES` | Optional | Comma-separated genres |
-| **Y** (25) | `RUNTIME` | Optional | e.g. `2h 15m` |
-| **Z** (26) | `POSTER URL` | Optional | Direct Cloudinary or custom image URL |
-| **AA** (27) | `BACKDROP URL` | Optional | Direct widescreen banner image URL |
-| **AB** (28) | `SYNOPSIS` | Optional | 2-3 sentence neutral overview |
-
-*Note: All extended columns are purely optional. If omitted, the publication backend automatically uses first-party fallback defaults.*
-
----
-
-## 🚦 2. Google Sheet Status State Machine
-
-| Status | Set By | Meaning & Behavior |
-|---|---|---|
-| **`Pending`** | Creator (Default) | Editorial input is complete and waiting for generation. The automation will generate the review only when all required fields are present and `GENERATED REVIEW` is empty. |
-| **`Review generated`** | Automation | Review has been synthesized and written back to the sheet. **The system will never overwrite or regenerate this automatically.** |
-| **`Publish it`** | Creator (Manual Gate) | **The hard editorial approval gate.** The creator has reviewed the content and authorized publication. |
-| **`Published`** | Automation | The review has been successfully created in The Abstract Take database. The public canonical URL is written into column `PUBLISHED URL`. |
-
----
-
-## ⚙️ 3. Backend Environment Variables
-
-In your backend `.env` file (see [`.env.example`](file:///C:/Users/itspr/take/.env.example)):
-
-```bash
-# Google Sheets Bulk Automation Secret Key (Must match CONFIG.AUTOMATION_SECRET in Google Apps Script)
-AUTOMATION_SECRET="the_abstract_take_sheets_automation_secret_key_2026"
-GOOGLE_SHEETS_AUTOMATION_SECRET="the_abstract_take_sheets_automation_secret_key_2026"
-
-# Canonical Site URL for generated public links
-SITE_BASE_URL="http://localhost:3000" # or "https://theabstracttake.com"
++-----------------------------------------------------------------------------------+
+| 1. FOUNDER MEMORY CAPTURE (Google Sheet Columns A–K)                              |
+|    - Title, Release Year, Content Type, Authoritative Score (1–10)                |
+|    - Quick Thesis, What Worked, What Didn't, Memory Notes, Target Length          |
+|    - Generation Status: READY_FOR_GENERATION                                      |
++-----------------------------------------+-----------------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+| 2. AI EDITORIAL GENERATION (/api/automation/generate or Direct Gemini 2.5 Flash)  |
+|    - Calibrates editorial tone to exact score tier (10/10 vs 7/10)                |
+|    - Targets word count: Quick (125w), Standard (280w), Deep (750w), Essay (1600w)|
+|    - Generates structured JSON + preview text                                     |
+|    - Generation Status: GENERATED · Editorial Status: AI_DRAFT_READY              |
++-----------------------------------------+-----------------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+| 3. FOUNDER EDITORIAL AUDIT & APPROVAL (Google Sheet Columns W–AA)                 |
+|    - Founder audits AI draft preview / JSON in Google Sheets                      |
+|    - Sets Editorial Status: APPROVED                                              |
++-----------------------------------------+-----------------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+| 4. SECURE CMS DRAFT IMPORT (/api/admin/import-reviews)                            |
+|    - Server-side JWT / Secret authorization                                       |
+|    - Duplicate Detection (Normalized title + year / slug)                         |
+|    - Creates review as status: 'draft' in database                                |
+|    - Sets CMS Import Status: IMPORTED_TO_CMS                                      |
++-----------------------------------------+-----------------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+| 5. CMS EDITORIAL MANAGEMENT & PRODUCTION PUBLICATION (/admin/reviews)             |
+|    - Founder inspects draft in CMS Review Editor                                  |
+|    - Fine-tunes tags, streaming links, artwork, and clicks "Publish Take"         |
+|    - Live on https://the-abstract-take.vercel.app                                 |
++-----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 🚀 4. Google Sheets Setup Guide (Step-by-Step)
+## 📋 2. Complete 34-Column Google Sheet Layout (A through AH)
 
-### Step 1: Open Google Sheets
-1. Create a new Google Sheet named **`The Abstract Take - Editorial Backlog`**.
-2. Rename the first tab to **`Reviews Backlog`**.
+| # | Col | Column Name | Type | Description & Example |
+|---|---|---|---|---|
+| **1** | `A` | `TITLE` | **Required** | Title of the film / series (e.g. `Dune: Part Two`) |
+| **2** | `B` | `RELEASE YEAR` | Optional | Release Year (e.g. `2024`) |
+| **3** | `C` | `CONTENT TYPE` | **Required** | Dropdown: `Movie`, `Series`, `Mini Series`, `Anime`, `Documentary`, `Special` |
+| **4** | `D` | `FOUNDER SCORE` | **Required** | Authoritative Abstract Score (`1` to `10`) |
+| **5** | `E` | `QUICK THESIS` | Optional | Core take / hook (e.g. `Towering visual sci-fi masterpiece with immaculate sound`) |
+| **6** | `F` | `WHAT WORKED` | Optional | Highlights & strengths (e.g. `Cinematography, Austin Butler performance, score`) |
+| **7** | `G` | `WHAT DIDNT` | Optional | Weaknesses & flaws (e.g. `Slightly compressed third act pacing`) |
+| **8** | `H` | `FAVORITE SCENE` | Optional | Standout sequence (e.g. `The spice harvester assault on Arrakis`) |
+| **9** | `I` | `FAVORITE QUOTE` | Optional | Memorable dialogue or line |
+| **10** | `J` | `VIEWING MEMORY NOTES` | Optional | Rough memories, emotional vibe, rewatchability (e.g. `Immersive in IMAX 70mm`) |
+| **11** | `K` | `TARGET REVIEW LENGTH` | Optional | Dropdown: `Quick Take` (125w), `Standard Take` (280w), `Deep Take` (750w), `Essay` |
+| **12** | `L` | `ORIGINAL TITLE` | Optional | Non-English or alternate title (e.g. `Kaibutsu`) |
+| **13** | `M` | `DIRECTOR` | Optional | Director / Creator name |
+| **14** | `N` | `LEAD CAST` | Optional | Comma-separated cast members |
+| **15** | `O` | `RUNTIME` | Optional | e.g. `2h 46m` |
+| **16** | `P` | `PRIMARY GENRES` | Optional | e.g. `Sci-Fi, Adventure` |
+| **17** | `Q` | `THEMES & MOODS` | Optional | e.g. `Power, Prophecy, Atmospheric` |
+| **18** | `R` | `GENERATION STATUS` | **Status** | `NOT_STARTED`, `READY_FOR_GENERATION`, `GENERATING`, `GENERATED`, `GENERATION_FAILED` |
+| **19** | `S` | `GENERATED JSON` | *Auto* | Full structured JSON payload compatible with `Review` schema |
+| **20** | `T` | `GENERATED REVIEW PREVIEW` | *Auto* | Formatted text preview for human reading |
+| **21** | `U` | `AI GENERATION NOTES` | *Auto* | Generation source and calibration notes |
+| **22** | `V` | `GENERATION TIMESTAMP` | *Auto* | ISO timestamp of generation completion |
+| **23** | `W` | `EDITORIAL STATUS` | **Status** | `MEMORY_CAPTURE`, `AI_DRAFT_READY`, `NEEDS_REVIEW`, `NEEDS_REVISION`, `APPROVED`, `REJECTED` |
+| **24** | `X` | `FOUNDER REVIEW NOTES` | Optional | Founder feedback or revision directives |
+| **25** | `Y` | `FINAL APPROVED JSON` | Optional | Approved JSON payload ready for CMS ingestion |
+| **26** | `Z` | `APPROVED BY` | Optional | e.g. `Founder / Chief Editor` |
+| **27** | `AA` | `APPROVAL TIMESTAMP` | *Auto* | Timestamp of founder approval |
+| **28** | `AB` | `CMS IMPORT STATUS` | **Status** | `NOT_IMPORTED`, `IMPORTED_TO_CMS`, `IMPORT_FAILED`, `DUPLICATE_SKIPPED` |
+| **29** | `AC` | `WEBSITE PUBLICATION STATUS` | **Status** | `DRAFT`, `SCHEDULED`, `PUBLISHED` |
+| **30** | `AD` | `PUBLISHED URL` | *Auto* | Live website URL once published |
+| **31** | `AE` | `PUBLICATION TIMESTAMP` | *Auto* | Timestamp of publication |
+| **32** | `AF` | `INTERNAL ID` | *Auto* | Unique pipeline tracking ID (e.g. `take-178793-r2`) |
+| **33** | `AG` | `ERROR LOG` | *Auto* | Diagnostic error log or retry explanation |
+| **34** | `AH` | `LAST UPDATED` | *Auto* | Timestamp of last modification |
 
-### Step 2: Open Apps Script Editor
-1. In Google Sheets, click **Extensions** > **Apps Script**.
-2. Delete any default code in `Code.gs`.
-3. Copy the entire contents of [`google_apps_script/Code.gs`](file:///C:/Users/itspr/take/google_apps_script/Code.gs) and paste it into the editor.
+---
 
-### Step 3: Configure Settings in `Code.gs`
-Update the `CONFIG` object at the top of the script:
-```javascript
-var CONFIG = {
-  // Your deployed website URL or ngrok tunnel during development
-  API_BASE_URL: "https://your-domain.com", // or "http://localhost:3000"
+## 🚦 3. State Machine Workflow
 
-  // Must match AUTOMATION_SECRET in backend .env
-  AUTOMATION_SECRET: "the_abstract_take_sheets_automation_secret_key_2026",
-
-  SHEET_NAME: "Reviews Backlog",
-};
+```
+[ MEMORY CAPTURE ]
+       │
+       ▼ (Set Generation Status: READY_FOR_GENERATION)
+[ READY_FOR_GENERATION ]
+       │
+       ▼ (Batch/Single Generation Execution)
+[ GENERATING ]
+       │
+       ├─────────────────────────────────┐
+       ▼ (Valid JSON & Score Verified)   ▼ (Validation/API Error)
+[ GENERATED ]                     [ GENERATION_FAILED ]
+       │                                 │ (Fix notes & retry)
+       ▼ (Editorial Status)              └───────────► [ READY_FOR_GENERATION ]
+[ AI_DRAFT_READY ]
+       │
+       ▼ (Founder Audit)
+[ NEEDS_REVIEW / NEEDS_REVISION ]
+       │
+       ▼ (Founder Approval)
+[ APPROVED ]
+       │
+       ▼ (Import Approved to CMS)
+[ IMPORTED_TO_CMS (Created as DRAFT) ]
+       │
+       ▼ (CMS Review & Publish)
+[ PUBLISHED (Live URL written) ]
 ```
 
-### Step 4: Save & Initialize Template
-1. In the Apps Script toolbar, click **Save** (💾).
-2. Switch back to your Google Sheet and refresh the page.
-3. You will see a new menu: **🎬 The Abstract Take**.
-4. Click **🎬 The Abstract Take** > **📋 Setup Sheet Headers & Validation**.
-   *(Grant permissions when prompted by Google).*
-5. The script will automatically format all columns, set dark header styling, and configure the Status dropdowns.
+---
 
-### Step 5: Test Connection
-Click **🎬 The Abstract Take** > **🔍 Test Backend Connection**. You should see:
-`✅ Connection Successful! Service: The Abstract Take - Google Sheets Automation Engine`.
+## 🔒 4. Security & Script Properties Setup
 
-### Step 6: Enable Automatic 5-Minute Trigger
-Click **🎬 The Abstract Take** > **⏰ Install Automatic 5-Min Trigger**.
-The automation will now run silently in the background every 5 minutes!
+API keys are **never** hardcoded in the Apps Script codebase. They are stored securely in Google Apps Script `Script Properties`:
+
+1. Open your Google Sheet > **Extensions** > **Apps Script**.
+2. Click **⚙️ Project Settings** (gear icon on left sidebar).
+3. Scroll to **Script Properties** and add:
+   * `GEMINI_API_KEY`: Your Google Gemini AI API Key
+   * `API_BASE_URL`: `https://the-abstract-take.vercel.app` (or `http://localhost:3000`)
+   * `AUTOMATION_SECRET`: Must match `AUTOMATION_SECRET` in Next.js `.env`
+
+Alternatively, configure them via the custom sheet menu:
+**🎬 The Abstract Take** > **⚙️ Settings & Configuration** > **🔑 Set Gemini API Key**.
 
 ---
 
-## 🔒 5. Idempotency & Duplicate Prevention
+## ⚙️ 5. Google Sheet Menu Features
 
-1. **Unique Slug Generation**: Every review is slugified using `title-releaseYear` (e.g. `dune-part-two-2024`).
-2. **Key Matching**: If a Publish request is resent for an existing row ID or slug:
-   - The backend **updates** the existing review instead of creating a duplicate.
-   - Preserves existing page view counts, comments, and IDs.
-   - Returns the existing canonical URL.
-3. **LockService**: Apps Script uses `LockService.getScriptLock()` to prevent duplicate concurrent executions.
+When you open the sheet, the custom menu provides one-click automation controls:
+
+* **✨ Generate Review for Selected Row**: Generates review for the active cursor row.
+* **⚡ Generate Reviews for Ready Rows**: Processes a controlled batch of 3–5 rows marked `READY_FOR_GENERATION`.
+* **🔍 Validate Selected Review JSON**: Validates that JSON is well-formed and respects Score Authority.
+* **📝 Mark Selected Row Ready for Editorial Review**: Switches status to `NEEDS_REVIEW`.
+* **✅ Approve Selected Review**: Copies JSON to `FINAL APPROVED JSON` and marks `APPROVED`.
+* **🚀 Import Approved Reviews to CMS (Drafts)**: Securely sends all unimported approved reviews to `/api/admin/import-reviews`.
+* **📦 Export Approved Reviews JSON**: Opens a copy-paste modal containing approved reviews JSON.
+* **📊 View Pipeline Status**: Displays counts of all rows across pipeline stages.
+* **📋 Setup 34-Column Sheet Template**: Auto-formats headers, colors, and dropdown validations.
 
 ---
 
-## 🔄 6. Managing & Retrying Reviews
+## 🛡️ 6. Duplicate Prevention & Safety Controls
 
-- **How to Regenerate a Review**:
-  If you edit your raw take and want a fresh generation, simply set `STATUS` back to `Pending` and clear the `GENERATED REVIEW` cell.
-- **Handling Errors**:
-  If a row has missing information or a network timeout occurs:
-  - `STATUS` remains `Pending` (or `Publish it`).
-  - The exact error is recorded in `AUTOMATION NOTES`.
-  - Fix the cell and it will automatically retry on the next cycle.
+1. **Normalized Matching**: Prevents duplicate entries using primary key (`normalized title + releaseYear`) and secondary key (`slug`).
+2. **Batch Size Control**: Apps Script limits batch executions to 3–5 rows per run with `LockService` to prevent simultaneous execution collisions.
+3. **Mandatory Draft Mode**: `/api/admin/import-reviews` always stores reviews as `status: 'draft'`. No review is ever published automatically without final editorial sign-off.
