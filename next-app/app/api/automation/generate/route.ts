@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateEditorialMemoryReview, EditorialMemoryInput } from '@/lib/editorial/memoryPipeline';
 import { validateAutomationSecret } from '@/lib/auth';
 import { MediaType } from '@/types';
+import { normalizeContentType, CANONICAL_MEDIA_TYPES } from '@/lib/utils/mediaType';
 
 export async function POST(req: NextRequest) {
   if (!validateAutomationSecret(req)) {
@@ -50,21 +51,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: 'MissingTitle',
+          generationStatus: 'GENERATION_FAILED',
           message: 'Title is required for editorial review generation.',
         },
         { status: 400 }
       );
     }
 
+    const rawType = contentType || type || 'Movie';
+    const normType = normalizeContentType(rawType);
+    if (!normType) {
+      return NextResponse.json(
+        {
+          error: 'InvalidContentType',
+          generationStatus: 'GENERATION_FAILED',
+          message: `Invalid Content Type "${rawType}". Must be one of: ${CANONICAL_MEDIA_TYPES.join(', ')}.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const normScore = Math.max(1, Math.min(10, Math.round(Number(abstractScore || rating) || 8)));
-    const cleanType: MediaType = (contentType || type || 'Movie') as MediaType;
+    const cleanType: MediaType = normType;
     const cleanYear = Number(releaseYear || year) || new Date().getFullYear();
 
     const memoryInput: EditorialMemoryInput = {
       title: actualTitle,
       releaseYear: cleanYear,
       contentType: cleanType,
+      type: cleanType,
       rating: normScore,
+      abstractScore: normScore,
       rawTake: rawTake ? String(rawTake).trim() : myTake ? String(myTake).trim() : undefined,
       likes: whatWorked || likes,
       dislikes: whatDidnt || dislikes,
@@ -87,10 +104,10 @@ export async function POST(req: NextRequest) {
     const generated = await generateEditorialMemoryReview(memoryInput);
 
     const sourceLabel = generated.generationMetadata.source === 'editorial-memory-pipeline' ? 'Gemini 2.5 Flash' : 'Fallback Engine';
-    const notes = `Generated via ${sourceLabel} · Grounded strictly in founder signals (Score: ${normScore}/10)`;
+    const notes = `Generated via ${sourceLabel} · Grounded strictly in founder signals (Score: ${normScore}/10 · ${generated.scoreDescriptor})`;
 
     // Preview snippet for Google Sheets
-    const previewText = `${generated.headline}\n\n${generated.longFormReview}\n\nVerdict: ${generated.verdictText}`;
+    const previewText = `${generated.headline}\n\n${generated.longFormReview}\n\nVerdict: ${generated.verdictText} (${generated.shouldYouWatch})`;
 
     return NextResponse.json({
       success: true,
@@ -105,17 +122,24 @@ export async function POST(req: NextRequest) {
         title: generated.title,
         originalTitle: generated.originalTitle,
         releaseYear: generated.releaseYear,
+        type: generated.type,
         contentType: generated.type,
+        abstractScore: generated.abstractScore,
         rating: generated.abstractScore,
+        scoreDescriptor: generated.scoreDescriptor,
         headline: generated.headline,
-        editorialReview: generated.longFormReview,
-        pros: generated.pros.join('\n'),
-        cons: generated.cons.join('\n'),
-        verdict: generated.verdictText,
-        seoDescription: generated.seoDescription,
-        tags: generated.tags.join(', '),
-        shouldYouWatch: generated.shouldYouWatch,
+        myTake: generated.myTake,
         myTakeHook: generated.myTake,
+        editorialReview: generated.longFormReview,
+        longFormReview: generated.longFormReview,
+        pros: generated.pros,
+        cons: generated.cons,
+        verdictText: generated.verdictText,
+        verdict: generated.verdictText,
+        shouldYouWatch: generated.shouldYouWatch,
+        spoilerFreeTake: generated.spoilerFreeTake,
+        seoDescription: generated.seoDescription,
+        tags: generated.tags,
         recommendationMetadata: generated.recommendationMetadata,
         generationMetadata: generated.generationMetadata,
         status: 'Review generated',

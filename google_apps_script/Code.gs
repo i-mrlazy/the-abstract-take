@@ -6,24 +6,50 @@
  * score authority enforcement, controlled batching, and secure CMS draft import.
  *
  * ARCHITECTURE:
- * Google Sheet (34 Columns) → Google Apps Script → Gemini API / Backend → CMS Drafts
+ * Google Sheet → Google Apps Script → Gemini API (gemini-3.6-flash) / Backend → CMS Drafts
  *
  * EDITORIAL PRINCIPLES:
  * 1. STRICT SCORE AUTHORITY — Founder's Abstract Score (1–10) is absolute and never altered.
  * 2. EDITORIAL MEMORY SIGNALS — AI structures founder's notes without fabricating personal experiences.
  * 3. MANDATORY APPROVAL — Reviews must be approved by founder and imported as CMS drafts before publishing.
+ * 4. ATOMIC GENERATION & WRITE VERIFICATION — Status "Generated" only assigned after verified non-empty JSON write.
+ * 5. ROBUST EXPONENTIAL BACKOFF RETRIES — Automatic retry handling for temporary 429/500/502/503/504 errors.
  * ==============================================================================
  */
 
 // ==============================================================================
-// 1. CONFIGURATION & COLUMN DEFINITIONS
+// 1. CONFIGURATION & CANONICAL WORKFLOW STATUSES
 // ==============================================================================
 var CONFIG = {
   SHEET_NAME: "Editorial Pipeline",
 
-  // 34-Column Index Map (1-indexed)
+  // Canonical Google Sheet Workflow Statuses (Column G)
+  STATUS: {
+    IDEA: "Idea",
+    READY_FOR_GENERATION: "Ready For Generation",
+    GENERATING: "Generating",
+    GENERATED: "Generated",
+    NEEDS_REVIEW: "Needs Review",
+    APPROVED: "Approved",
+    PUBLISHED: "Published",
+    REWATCH_REQUIRED: "Rewatch Required",
+    GENERATION_FAILED: "Generation Failed",
+  },
+
+  CANONICAL_STATUS_LIST: [
+    "Idea",
+    "Ready For Generation",
+    "Generating",
+    "Generated",
+    "Needs Review",
+    "Approved",
+    "Published",
+    "Rewatch Required",
+    "Generation Failed",
+  ],
+
+  // Default 34-Column Fallback Index Map (1-indexed)
   COL: {
-    // FOUNDER MEMORY / INPUT (A–K)
     TITLE: 1,                 // A
     RELEASE_YEAR: 2,          // B
     CONTENT_TYPE: 3,          // C
@@ -36,7 +62,6 @@ var CONFIG = {
     VIEWING_NOTES: 10,        // J
     TARGET_LENGTH: 11,        // K
 
-    // FACTUAL METADATA (L–Q)
     ORIGINAL_TITLE: 12,       // L
     DIRECTOR: 13,             // M
     LEAD_CAST: 14,            // N
@@ -44,68 +69,259 @@ var CONFIG = {
     PRIMARY_GENRES: 16,       // P
     THEMES_MOODS: 17,         // Q
 
-    // AI GENERATION (R–V)
     GENERATION_STATUS: 18,    // R
     GENERATED_JSON: 19,       // S
     GENERATED_PREVIEW: 20,    // T
     AI_NOTES: 21,             // U
     GENERATION_TIME: 22,      // V
 
-    // EDITORIAL REVIEW (W–AA)
     EDITORIAL_STATUS: 23,     // W
     FOUNDER_NOTES: 24,        // X
     FINAL_APPROVED_JSON: 25,  // Y
     APPROVED_BY: 26,          // Z
     APPROVAL_TIME: 27,        // AA
 
-    // PUBLICATION (AB–AE)
     CMS_IMPORT_STATUS: 28,    // AB
     WEBSITE_PUB_STATUS: 29,   // AC
     PUBLISHED_URL: 30,        // AD
     PUB_TIME: 31,             // AE
 
-    // SYSTEM (AF–AH)
     INTERNAL_ID: 32,          // AF
     ERROR_LOG: 33,            // AG
     LAST_UPDATED: 34,         // AH
   },
 
-  // State Machine Values
-  STATUS: {
-    GENERATION: {
-      NOT_STARTED: "NOT_STARTED",
-      READY_FOR_GENERATION: "READY_FOR_GENERATION",
-      GENERATING: "GENERATING",
-      GENERATED: "GENERATED",
-      GENERATION_FAILED: "GENERATION_FAILED",
-    },
-    EDITORIAL: {
-      MEMORY_CAPTURE: "MEMORY_CAPTURE",
-      AI_DRAFT_READY: "AI_DRAFT_READY",
-      NEEDS_REVIEW: "NEEDS_REVIEW",
-      NEEDS_REVISION: "NEEDS_REVISION",
-      APPROVED: "APPROVED",
-      REJECTED: "REJECTED",
-    },
-    CMS_IMPORT: {
-      NOT_IMPORTED: "NOT_IMPORTED",
-      IMPORTED_TO_CMS: "IMPORTED_TO_CMS",
-      IMPORT_FAILED: "IMPORT_FAILED",
-      DUPLICATE_SKIPPED: "DUPLICATE_SKIPPED",
-    },
-    WEBSITE_PUB: {
-      DRAFT: "DRAFT",
-      SCHEDULED: "SCHEDULED",
-      PUBLISHED: "PUBLISHED",
-    },
-  },
-
   // Batch Generation Limits
   MAX_BATCH_SIZE: 5,
+
+  // Retry Strategy Parameters (Bounded Exponential Backoff for Google Apps Script)
+  RETRY: {
+    MAX_ATTEMPTS: 4,
+    DELAYS_MS: [2000, 5000, 10000],
+    RETRYABLE_CODES: [429, 500, 502, 503, 504],
+  },
 };
 
+var CANONICAL_MEDIA_TYPES = ["Movie", "Series", "Anime", "Documentary", "Mini Series", "Special"];
+var CANONICAL_WATCH_VERDICTS = ["Must Watch", "Recommended", "For Fans", "Skip"];
+
+/**
+ * Normalizes any workflow status to exact canonical Google Sheet status string.
+ */
+function normalizeWorkflowStatus(status) {
+  if (!status || typeof status !== "string") return null;
+  var cleaned = status.toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  if (cleaned === "idea") return "Idea";
+  if (cleaned === "readyforgeneration" || cleaned === "ready") return "Ready For Generation";
+  if (cleaned === "generating") return "Generating";
+  if (cleaned === "generated" || cleaned === "aidraftready" || cleaned === "draftready") return "Generated";
+  if (cleaned === "needsreview" || cleaned === "review" || cleaned === "needsrevision") return "Needs Review";
+  if (cleaned === "approved") return "Approved";
+  if (cleaned === "published") return "Published";
+  if (cleaned === "rewatchrequired" || cleaned === "rewatch") return "Rewatch Required";
+  if (cleaned === "generationfailed" || cleaned === "failed" || cleaned === "error") return "Generation Failed";
+
+  return null;
+}
+
+/**
+ * Normalizes user-entered or AI-generated media type string to exact canonical CMS MediaType:
+ * "Movie" | "Series" | "Anime" | "Documentary" | "Mini Series" | "Special"
+ * Returns null if unrecognized or invalid (never silently defaults to Movie).
+ */
+function normalizeContentType(type) {
+  if (!type || typeof type !== "string") return null;
+  var cleaned = type.toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  if (
+    cleaned === "movie" ||
+    cleaned === "movies" ||
+    cleaned === "film" ||
+    cleaned === "films" ||
+    cleaned === "feature" ||
+    cleaned === "featurefilm" ||
+    cleaned === "featuremovie"
+  ) {
+    return "Movie";
+  }
+
+  if (
+    cleaned === "series" ||
+    cleaned === "tvseries" ||
+    cleaned === "tv" ||
+    cleaned === "television" ||
+    cleaned === "show" ||
+    cleaned === "shows" ||
+    cleaned === "tvshow"
+  ) {
+    return "Series";
+  }
+
+  if (
+    cleaned === "anime" ||
+    cleaned === "animation" ||
+    cleaned === "animefeature" ||
+    cleaned === "animeseries"
+  ) {
+    return "Anime";
+  }
+
+  if (
+    cleaned === "documentary" ||
+    cleaned === "documentaries" ||
+    cleaned === "doc" ||
+    cleaned === "docs"
+  ) {
+    return "Documentary";
+  }
+
+  if (
+    cleaned === "miniseries" ||
+    cleaned === "limitedseries" ||
+    cleaned === "miniserie"
+  ) {
+    return "Mini Series";
+  }
+
+  if (
+    cleaned === "special" ||
+    cleaned === "specials" ||
+    cleaned === "standalone"
+  ) {
+    return "Special";
+  }
+
+  return null;
+}
+
+/**
+ * Normalizes shouldYouWatch to one of: "Must Watch" | "Recommended" | "For Fans" | "Skip"
+ * Preferred score defaults:
+ * 10, 9 -> "Must Watch"
+ * 8, 7, 6 -> "Recommended"
+ * 5 -> "For Fans"
+ * 4, 3, 2, 1 -> "Skip"
+ */
+function normalizeWatchVerdict(verdict, score) {
+  if (verdict && typeof verdict === "string") {
+    var v = verdict.trim();
+    if (
+      v === "Must Watch" ||
+      v === "Recommended" ||
+      v === "For Fans" ||
+      v === "Skip"
+    ) {
+      return v;
+    }
+  }
+
+  var s = Number(score);
+  if (isNaN(s)) s = 8;
+  if (s > 10) s = Math.round(s / 10);
+  s = Math.max(1, Math.min(10, Math.round(s)));
+
+  if (s >= 9) return "Must Watch";
+  if (s >= 6) return "Recommended";
+  if (s >= 5) return "For Fans";
+  return "Skip";
+}
+
+/**
+ * Returns the exact editorial word descriptor for a 1-10 Abstract Score
+ */
+function getScoreDescriptor(score) {
+  var s = Number(score);
+  if (isNaN(s)) s = 8;
+  if (s > 10) s = Math.round(s / 10);
+  s = Math.max(1, Math.min(10, Math.round(s)));
+
+  var map = {
+    10: "Masterpiece",
+    9: "Brilliant",
+    8: "Amazing",
+    7: "Good",
+    6: "Decent",
+    5: "Average",
+    4: "Underwhelming",
+    3: "Poor",
+    2: "Unbearable",
+    1: "Shouldn't Have Been Made",
+  };
+  return map[s] || "Good";
+}
+
 // ==============================================================================
-// 2. SECURE PROPERTIES ACCESSORS (Script Properties)
+// 2. DYNAMIC HEADER-BASED COLUMN RESOLUTION
+// ==============================================================================
+/**
+ * Scans Row 1 of the sheet to dynamically resolve column indexes.
+ * Supports both the standard 8-column layout (A–H) and the full 34-column layout.
+ */
+function getColumnMap(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) lastCol = 34;
+  var headerValues = sheet.getRange(1, 1, 1, Math.max(lastCol, 34)).getValues()[0];
+
+  var map = {};
+  for (var i = 0; i < headerValues.length; i++) {
+    var raw = String(headerValues[i] || "").trim();
+    if (!raw) continue;
+    var norm = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+    map[norm] = i + 1; // 1-indexed column number
+  }
+
+  function resolveCol(candidates, fallbackIndex) {
+    for (var k = 0; k < candidates.length; k++) {
+      var normCandidate = candidates[k].toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (map[normCandidate] !== undefined) {
+        return map[normCandidate];
+      }
+    }
+    return fallbackIndex;
+  }
+
+  return {
+    TITLE: resolveCol(["title", "review title", "film title", "name"], CONFIG.COL.TITLE),
+    RELEASE_YEAR: resolveCol(["release year", "year", "release_year"], CONFIG.COL.RELEASE_YEAR),
+    CONTENT_TYPE: resolveCol(["media type", "content type", "type", "format", "media_type"], CONFIG.COL.CONTENT_TYPE),
+    FOUNDER_SCORE: resolveCol(["founder score", "score", "rating", "abstract score", "founder_score"], CONFIG.COL.FOUNDER_SCORE),
+    QUICK_THESIS: resolveCol(["quick thesis", "thesis", "raw take", "my take", "notes & user pointers", "notes and user pointers", "notes", "pointers"], CONFIG.COL.QUICK_THESIS),
+    WHAT_WORKED: resolveCol(["what worked", "likes", "pros", "positives"], CONFIG.COL.WHAT_WORKED),
+    WHAT_DIDNT: resolveCol(["what didnt", "what didn't", "dislikes", "cons", "negatives"], CONFIG.COL.WHAT_DIDNT),
+    STATUS: resolveCol(["status", "editorial status", "generation status"], 7),
+    GENERATED_JSON: resolveCol(["generated review / json", "generated review /json", "generated review/json", "generated review", "generated json", "review json", "generated_json", "json"], 8),
+    FAVORITE_SCENE: resolveCol(["favorite scene", "favorite_scene"], CONFIG.COL.FAVORITE_SCENE),
+    FAVORITE_QUOTE: resolveCol(["favorite quote", "favorite_quote"], CONFIG.COL.FAVORITE_QUOTE),
+    VIEWING_NOTES: resolveCol(["viewing memory notes", "viewing notes", "notes & user pointers", "memory notes", "notes"], CONFIG.COL.VIEWING_NOTES),
+    TARGET_LENGTH: resolveCol(["target review length", "target length", "length"], CONFIG.COL.TARGET_LENGTH),
+    ORIGINAL_TITLE: resolveCol(["original title"], CONFIG.COL.ORIGINAL_TITLE),
+    DIRECTOR: resolveCol(["director", "creator"], CONFIG.COL.DIRECTOR),
+    LEAD_CAST: resolveCol(["lead cast", "cast"], CONFIG.COL.LEAD_CAST),
+    RUNTIME: resolveCol(["runtime"], CONFIG.COL.RUNTIME),
+    PRIMARY_GENRES: resolveCol(["primary genres", "genres"], CONFIG.COL.PRIMARY_GENRES),
+    THEMES_MOODS: resolveCol(["themes & moods", "themes", "moods"], CONFIG.COL.THEMES_MOODS),
+    GENERATION_STATUS: resolveCol(["generation status", "status"], CONFIG.COL.GENERATION_STATUS),
+    GENERATED_PREVIEW: resolveCol(["generated review preview", "generated preview", "preview"], CONFIG.COL.GENERATED_PREVIEW),
+    AI_NOTES: resolveCol(["ai generation notes", "ai notes", "automation notes"], CONFIG.COL.AI_NOTES),
+    GENERATION_TIME: resolveCol(["generation timestamp", "generation time"], CONFIG.COL.GENERATION_TIME),
+    EDITORIAL_STATUS: resolveCol(["editorial status", "status"], CONFIG.COL.EDITORIAL_STATUS),
+    FOUNDER_NOTES: resolveCol(["founder review notes", "founder notes"], CONFIG.COL.FOUNDER_NOTES),
+    FINAL_APPROVED_JSON: resolveCol(["final approved json", "approved json"], CONFIG.COL.FINAL_APPROVED_JSON),
+    APPROVED_BY: resolveCol(["approved by"], CONFIG.COL.APPROVED_BY),
+    APPROVAL_TIME: resolveCol(["approval timestamp", "approval time"], CONFIG.COL.APPROVAL_TIME),
+    CMS_IMPORT_STATUS: resolveCol(["cms import status", "cms status"], CONFIG.COL.CMS_IMPORT_STATUS),
+    WEBSITE_PUB_STATUS: resolveCol(["website publication status", "publication status"], CONFIG.COL.WEBSITE_PUB_STATUS),
+    PUBLISHED_URL: resolveCol(["published url", "url"], CONFIG.COL.PUBLISHED_URL),
+    PUB_TIME: resolveCol(["publication timestamp", "pub time"], CONFIG.COL.PUB_TIME),
+    INTERNAL_ID: resolveCol(["internal id", "id"], CONFIG.COL.INTERNAL_ID),
+    ERROR_LOG: resolveCol(["error log", "error", "errors"], CONFIG.COL.ERROR_LOG),
+    LAST_UPDATED: resolveCol(["last updated", "updated"], CONFIG.COL.LAST_UPDATED),
+  };
+}
+
+// ==============================================================================
+// 3. SECURE PROPERTIES ACCESSORS (Script Properties)
 // ==============================================================================
 function getScriptConfig() {
   var props = PropertiesService.getScriptProperties();
@@ -161,7 +377,7 @@ function promptForBackendConfig() {
 }
 
 // ==============================================================================
-// 3. CUSTOM MENU & UI
+// 4. CUSTOM MENU & UI
 // ==============================================================================
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
@@ -170,7 +386,7 @@ function onOpen() {
     .addItem("⚡ Generate Reviews for Ready Rows (Batch 3-5)", "generateApprovedRows")
     .addSeparator()
     .addItem("🔍 Validate Selected Review JSON", "validateSelectedReview")
-    .addItem("📝 Mark Selected Row Ready for Editorial Review", "markSelectedReadyForEditorial")
+    .addItem("📝 Mark Selected Row as 'Needs Review'", "markSelectedReadyForEditorial")
     .addItem("✅ Approve Selected Review", "approveSelectedReview")
     .addSeparator()
     .addItem("🚀 Import Approved Reviews to CMS (Drafts)", "importApprovedToCms")
@@ -189,183 +405,109 @@ function onOpen() {
 }
 
 // ==============================================================================
-// 4. SETUP SHEET TEMPLATE (34 COLUMNS & DROPDOWNS)
-// ==============================================================================
-function setupSheetTemplate() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
-  sheet.setName(CONFIG.SHEET_NAME);
-
-  var headers = [
-    // A–K
-    "TITLE", "RELEASE YEAR", "CONTENT TYPE", "FOUNDER SCORE", "QUICK THESIS",
-    "WHAT WORKED", "WHAT DIDNT", "FAVORITE SCENE", "FAVORITE QUOTE",
-    "VIEWING MEMORY NOTES", "TARGET REVIEW LENGTH",
-    // L–Q
-    "ORIGINAL TITLE", "DIRECTOR", "LEAD CAST", "RUNTIME", "PRIMARY GENRES", "THEMES & MOODS",
-    // R–V
-    "GENERATION STATUS", "GENERATED JSON", "GENERATED REVIEW PREVIEW",
-    "AI GENERATION NOTES", "GENERATION TIMESTAMP",
-    // W–AA
-    "EDITORIAL STATUS", "FOUNDER REVIEW NOTES", "FINAL APPROVED JSON",
-    "APPROVED BY", "APPROVAL TIMESTAMP",
-    // AB–AE
-    "CMS IMPORT STATUS", "WEBSITE PUBLICATION STATUS", "PUBLISHED URL", "PUBLICATION TIMESTAMP",
-    // AF–AH
-    "INTERNAL ID", "ERROR LOG", "LAST UPDATED",
-  ];
-
-  var headerRange = sheet.getRange(1, 1, 1, headers.length);
-  headerRange.setValues([headers]);
-  headerRange.setFontWeight("bold");
-  headerRange.setBackground("#0F172A"); // Slate-900
-  headerRange.setFontColor("#F8FAFC");
-  headerRange.setFontFamily("Consolas");
-  headerRange.setHorizontalAlignment("center");
-  sheet.setFrozenRows(1);
-  sheet.setFrozenColumns(1);
-
-  var maxRows = Math.max(sheet.getMaxRows(), 300);
-
-  // Content Type Dropdown (Col C / 3)
-  var typeRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(["Movie", "Series", "Mini Series", "Anime", "Documentary", "Special"], true)
-    .build();
-  sheet.getRange(2, CONFIG.COL.CONTENT_TYPE, maxRows - 1, 1).setDataValidation(typeRule);
-
-  // Score Dropdown (Col D / 4)
-  var scoreRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(["10", "9", "8", "7", "6", "5", "4", "3", "2", "1"], true)
-    .build();
-  sheet.getRange(2, CONFIG.COL.FOUNDER_SCORE, maxRows - 1, 1).setDataValidation(scoreRule);
-
-  // Target Length Dropdown (Col K / 11)
-  var lengthRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(["Quick Take", "Standard Take", "Deep Take", "Essay"], true)
-    .build();
-  sheet.getRange(2, CONFIG.COL.TARGET_LENGTH, maxRows - 1, 1).setDataValidation(lengthRule);
-
-  // Generation Status Dropdown (Col R / 18)
-  var genStatusRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList([
-      CONFIG.STATUS.GENERATION.NOT_STARTED,
-      CONFIG.STATUS.GENERATION.READY_FOR_GENERATION,
-      CONFIG.STATUS.GENERATION.GENERATING,
-      CONFIG.STATUS.GENERATION.GENERATED,
-      CONFIG.STATUS.GENERATION.GENERATION_FAILED,
-    ], true)
-    .build();
-  sheet.getRange(2, CONFIG.COL.GENERATION_STATUS, maxRows - 1, 1).setDataValidation(genStatusRule);
-
-  // Editorial Status Dropdown (Col W / 23)
-  var edStatusRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList([
-      CONFIG.STATUS.EDITORIAL.MEMORY_CAPTURE,
-      CONFIG.STATUS.EDITORIAL.AI_DRAFT_READY,
-      CONFIG.STATUS.EDITORIAL.NEEDS_REVIEW,
-      CONFIG.STATUS.EDITORIAL.NEEDS_REVISION,
-      CONFIG.STATUS.EDITORIAL.APPROVED,
-      CONFIG.STATUS.EDITORIAL.REJECTED,
-    ], true)
-    .build();
-  sheet.getRange(2, CONFIG.COL.EDITORIAL_STATUS, maxRows - 1, 1).setDataValidation(edStatusRule);
-
-  // CMS Import Status Dropdown (Col AB / 28)
-  var importStatusRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList([
-      CONFIG.STATUS.CMS_IMPORT.NOT_IMPORTED,
-      CONFIG.STATUS.CMS_IMPORT.IMPORTED_TO_CMS,
-      CONFIG.STATUS.CMS_IMPORT.IMPORT_FAILED,
-      CONFIG.STATUS.CMS_IMPORT.DUPLICATE_SKIPPED,
-    ], true)
-    .build();
-  sheet.getRange(2, CONFIG.COL.CMS_IMPORT_STATUS, maxRows - 1, 1).setDataValidation(importStatusRule);
-
-  // Column Widths
-  sheet.setColumnWidth(CONFIG.COL.TITLE, 180);
-  sheet.setColumnWidth(CONFIG.COL.QUICK_THESIS, 240);
-  sheet.setColumnWidth(CONFIG.COL.WHAT_WORKED, 200);
-  sheet.setColumnWidth(CONFIG.COL.WHAT_DIDNT, 200);
-  sheet.setColumnWidth(CONFIG.COL.VIEWING_NOTES, 260);
-  sheet.setColumnWidth(CONFIG.COL.GENERATED_PREVIEW, 320);
-  sheet.setColumnWidth(CONFIG.COL.GENERATED_JSON, 160);
-  sheet.setColumnWidth(CONFIG.COL.ERROR_LOG, 220);
-
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    "34-Column Editorial Pipeline Template successfully initialized!",
-    "Template Ready",
-    5
-  );
-}
-
-// ==============================================================================
 // 5. ROW VALIDATION & EXTRACTION
 // ==============================================================================
-function validateEditorialRow(row) {
-  var title = String(row[CONFIG.COL.TITLE - 1] || "").trim();
-  var score = Number(row[CONFIG.COL.FOUNDER_SCORE - 1]);
+function validateEditorialRow(row, cols) {
+  var titleCol = (cols && cols.TITLE) ? cols.TITLE : 1;
+  var scoreCol = (cols && cols.FOUNDER_SCORE) ? cols.FOUNDER_SCORE : 4;
+  var typeCol = (cols && cols.CONTENT_TYPE) ? cols.CONTENT_TYPE : 3;
+
+  var title = String(row[titleCol - 1] || "").trim();
+  var score = Number(row[scoreCol - 1]);
+  var rawType = String(row[typeCol - 1] || "").trim();
 
   if (!title) {
-    return { valid: false, error: "Title is required (Column A)." };
+    return { valid: false, error: "Title is required (Column " + titleCol + ")." };
   }
   if (!score || isNaN(score) || score < 1 || score > 10) {
-    return { valid: false, error: "Valid Founder Score (1–10) is required (Column D)." };
+    return { valid: false, error: "Valid Founder Score (1–10) is required (Column " + scoreCol + ")." };
+  }
+  if (!rawType) {
+    return { valid: false, error: "Content Type / Media Type is required (Column " + typeCol + ")." };
   }
 
-  return { valid: true };
+  var normType = normalizeContentType(rawType);
+  if (!normType) {
+    return {
+      valid: false,
+      error: 'Invalid Content Type: "' + rawType + '". Must be one of: ' + CANONICAL_MEDIA_TYPES.join(", ") + '.',
+    };
+  }
+
+  return { valid: true, normalizedType: normType };
 }
 
-function extractRowData(row, rowNum) {
+function extractRowData(row, rowNum, cols) {
+  function getVal(colIndex, defaultVal) {
+    if (!colIndex || colIndex < 1 || colIndex > row.length) return defaultVal;
+    var v = row[colIndex - 1];
+    return (v !== undefined && v !== null) ? String(v).trim() : defaultVal;
+  }
+
+  var rawType = getVal(cols.CONTENT_TYPE, "Movie");
+  var normalizedType = normalizeContentType(rawType) || rawType;
+  var scoreNum = Number(getVal(cols.FOUNDER_SCORE, "8"));
+
   return {
     rowNumber: rowNum,
-    title: String(row[CONFIG.COL.TITLE - 1] || "").trim(),
-    releaseYear: Number(row[CONFIG.COL.RELEASE_YEAR - 1]) || new Date().getFullYear(),
-    contentType: String(row[CONFIG.COL.CONTENT_TYPE - 1] || "Movie").trim(),
-    founderScore: Number(row[CONFIG.COL.FOUNDER_SCORE - 1]),
-    quickThesis: String(row[CONFIG.COL.QUICK_THESIS - 1] || "").trim(),
-    whatWorked: String(row[CONFIG.COL.WHAT_WORKED - 1] || "").trim(),
-    whatDidnt: String(row[CONFIG.COL.WHAT_DIDNT - 1] || "").trim(),
-    favoriteScene: String(row[CONFIG.COL.FAVORITE_SCENE - 1] || "").trim(),
-    favoriteQuote: String(row[CONFIG.COL.FAVORITE_QUOTE - 1] || "").trim(),
-    viewingNotes: String(row[CONFIG.COL.VIEWING_NOTES - 1] || "").trim(),
-    targetLength: String(row[CONFIG.COL.TARGET_LENGTH - 1] || "Standard Take").trim(),
-    originalTitle: String(row[CONFIG.COL.ORIGINAL_TITLE - 1] || "").trim(),
-    director: String(row[CONFIG.COL.DIRECTOR - 1] || "").trim(),
-    leadCast: String(row[CONFIG.COL.LEAD_CAST - 1] || "").trim(),
-    runtime: String(row[CONFIG.COL.RUNTIME - 1] || "").trim(),
-    genres: String(row[CONFIG.COL.PRIMARY_GENRES - 1] || "").trim(),
-    themesMoods: String(row[CONFIG.COL.THEMES_MOODS - 1] || "").trim(),
-    internalId: String(row[CONFIG.COL.INTERNAL_ID - 1] || "").trim(),
+    title: getVal(cols.TITLE, ""),
+    releaseYear: Number(getVal(cols.RELEASE_YEAR, String(new Date().getFullYear()))) || new Date().getFullYear(),
+    contentType: normalizedType,
+    founderScore: isNaN(scoreNum) ? 8 : scoreNum,
+    quickThesis: getVal(cols.QUICK_THESIS, ""),
+    whatWorked: getVal(cols.WHAT_WORKED, ""),
+    whatDidnt: getVal(cols.WHAT_DIDNT, ""),
+    favoriteScene: getVal(cols.FAVORITE_SCENE, ""),
+    favoriteQuote: getVal(cols.FAVORITE_QUOTE, ""),
+    viewingNotes: getVal(cols.VIEWING_NOTES, ""),
+    targetLength: getVal(cols.TARGET_LENGTH, "Standard Take"),
+    originalTitle: getVal(cols.ORIGINAL_TITLE, ""),
+    director: getVal(cols.DIRECTOR, ""),
+    leadCast: getVal(cols.LEAD_CAST, ""),
+    runtime: getVal(cols.RUNTIME, ""),
+    genres: getVal(cols.PRIMARY_GENRES, ""),
+    themesMoods: getVal(cols.THEMES_MOODS, ""),
+    internalId: getVal(cols.INTERNAL_ID, ""),
   };
 }
 
 // ==============================================================================
-// 6. AI REVIEW GENERATION WORKER
+// 6. AI REVIEW GENERATION WORKER (ATOMIC 12-STEP SEQUENCE WITH RETRIES)
 // ==============================================================================
 function generateReviewForRow(rowNumber) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
-  var rowValues = sheet.getRange(rowNumber, 1, 1, 34).getValues()[0];
+  var cols = getColumnMap(sheet);
 
-  var validation = validateEditorialRow(rowValues);
+  var maxCol = Math.max(sheet.getLastColumn(), 34);
+  var rowValues = sheet.getRange(rowNumber, 1, 1, maxCol).getValues()[0];
+
+  var validation = validateEditorialRow(rowValues, cols);
   if (!validation.valid) {
-    logGenerationError(rowNumber, validation.error);
+    logGenerationError(sheet, rowNumber, validation.error, cols);
     return { success: false, error: validation.error };
   }
 
-  var rowData = extractRowData(rowValues, rowNumber);
+  var rowData = extractRowData(rowValues, rowNumber, cols);
 
-  // Set internal ID if empty
-  if (!rowData.internalId) {
+  // Set internal ID if empty and column exists
+  if (cols.INTERNAL_ID && cols.INTERNAL_ID <= maxCol && !rowData.internalId) {
     var generatedId = "take-" + Date.now() + "-r" + rowNumber;
-    sheet.getRange(rowNumber, CONFIG.COL.INTERNAL_ID).setValue(generatedId);
+    sheet.getRange(rowNumber, cols.INTERNAL_ID).setValue(generatedId);
     rowData.internalId = generatedId;
   }
 
-  // Mark GENERATING status
-  sheet.getRange(rowNumber, CONFIG.COL.GENERATION_STATUS).setValue(CONFIG.STATUS.GENERATION.GENERATING);
-  sheet.getRange(rowNumber, CONFIG.COL.ERROR_LOG).setValue("");
-  sheet.getRange(rowNumber, CONFIG.COL.LAST_UPDATED).setValue(new Date().toISOString());
+  // Mark Status as "Generating" (Status remains "Generating" during all retry attempts)
+  var statusCol = cols.STATUS || cols.GENERATION_STATUS;
+  if (statusCol && statusCol <= maxCol) {
+    sheet.getRange(rowNumber, statusCol).setValue(CONFIG.STATUS.GENERATING);
+  }
+  if (cols.ERROR_LOG && cols.ERROR_LOG <= maxCol) {
+    sheet.getRange(rowNumber, cols.ERROR_LOG).setValue("");
+  }
+  if (cols.LAST_UPDATED && cols.LAST_UPDATED <= maxCol) {
+    sheet.getRange(rowNumber, cols.LAST_UPDATED).setValue(new Date().toISOString());
+  }
   SpreadsheetApp.flush();
 
   try {
@@ -375,6 +517,7 @@ function generateReviewForRow(rowNumber) {
       title: rowData.title,
       releaseYear: rowData.releaseYear,
       contentType: rowData.contentType,
+      type: rowData.contentType,
       rating: rowData.founderScore,
       abstractScore: rowData.founderScore,
       rawTake: rowData.quickThesis,
@@ -392,76 +535,410 @@ function generateReviewForRow(rowNumber) {
       themes: rowData.themesMoods || undefined,
     };
 
-    // Generate via backend endpoint or direct Gemini
+    // STEP 1-4: Generate via backend endpoint or direct Gemini (with automatic exponential backoff retries)
     var genResult = callGenerationApi(payload, conf);
 
     if (!genResult || !genResult.success) {
-      throw new Error(genResult ? genResult.message || genResult.error : "Empty generation response");
+      throw new Error(genResult ? genResult.message || genResult.error : "Empty generation response from AI engine.");
     }
 
-    var jsonStr = genResult.generatedJson || JSON.stringify(genResult.data || {});
-    var preview = genResult.generatedPreview || (genResult.data ? genResult.data.editorialReview : "");
-    var aiNotes = genResult.automationNotes || "Generated via Editorial Memory Pipeline";
+    // STEP 5: Parse JSON
+    var rawParsed = null;
+    if (genResult.generatedJson) {
+      try {
+        rawParsed = typeof genResult.generatedJson === "string" ? JSON.parse(genResult.generatedJson) : genResult.generatedJson;
+      } catch (e) {
+        throw new Error("Failed to parse generated JSON: " + e.message);
+      }
+    }
+    if (!rawParsed && genResult.data) {
+      rawParsed = genResult.data;
+    }
 
-    // Write result to sheet
-    writeGenerationResult(rowNumber, jsonStr, preview, aiNotes, rowData.founderScore);
+    if (!rawParsed || typeof rawParsed !== "object") {
+      throw new Error("AI returned unparseable or empty JSON review payload.");
+    }
+
+    // STEP 6: Validate required editorial fields
+    var title = rawParsed.title || rowData.title;
+    if (!title || !String(title).trim()) {
+      throw new Error("Validation failed: Generated review missing required field 'title'.");
+    }
+
+    // STEP 7: Normalize canonical media type and shouldYouWatch
+    var normType = normalizeContentType(rawParsed.type || rawParsed.contentType || rowData.contentType);
+    if (!normType) {
+      throw new Error('Post-generation validation failed: Unrecognized media type "' + (rawParsed.type || rawParsed.contentType) + '".');
+    }
+    rawParsed.type = normType;
+    if (rawParsed.contentType) rawParsed.contentType = normType;
+
+    rawParsed.shouldYouWatch = normalizeWatchVerdict(rawParsed.shouldYouWatch, rowData.founderScore);
+
+    // STEP 8: Enforce generated.abstractScore === founderScore
+    rawParsed.abstractScore = rowData.founderScore;
+    rawParsed.scoreDescriptor = getScoreDescriptor(rowData.founderScore);
+
+    rawParsed.title = title.trim();
+    rawParsed.releaseYear = Number(rawParsed.releaseYear) || rowData.releaseYear;
+    rawParsed.myTake = rawParsed.myTake || rawParsed.myTakeHook || rawParsed.headline || (rowData.title + " earns " + rowData.founderScore + "/10.");
+    rawParsed.headline = rawParsed.headline || (rowData.title + ": A " + rawParsed.scoreDescriptor + " Critique");
+    rawParsed.verdictText = rawParsed.verdictText || rawParsed.verdict || (rowData.title + " earns an official " + rowData.founderScore + "/10 on The Abstract Take.");
+    rawParsed.pros = Array.isArray(rawParsed.pros) ? rawParsed.pros : [];
+    rawParsed.cons = Array.isArray(rawParsed.cons) ? rawParsed.cons : [];
+    rawParsed.longFormReview = rawParsed.longFormReview || rawParsed.editorialReview || "";
+    if (!rawParsed.longFormReview || !rawParsed.longFormReview.trim()) {
+      throw new Error("Validation failed: Generated review missing required field 'longFormReview'.");
+    }
+
+    rawParsed.recommendationMetadata = rawParsed.recommendationMetadata || {
+      themes: ["Identity", "Human Nature"],
+      moods: ["Atmospheric", "Thought-Provoking"],
+    };
+    rawParsed.generationMetadata = rawParsed.generationMetadata || {
+      source: "editorial-memory-pipeline",
+      founderScore: true,
+      founderNotesProvided: true,
+      requiresEditorialApproval: true,
+      generatedAt: new Date().toISOString(),
+    };
+
+    // STEP 9: Serialize the validated JSON
+    var jsonStr = JSON.stringify(rawParsed, null, 2);
+    if (!jsonStr || typeof jsonStr !== "string" || jsonStr.trim().length === 0) {
+      throw new Error("Validation failed: Serialized JSON string is empty.");
+    }
+
+    var preview = rawParsed.headline + "\n\n" + rawParsed.longFormReview + "\n\nVerdict: " + rawParsed.verdictText + " (" + rawParsed.shouldYouWatch + ")";
+    var aiNotes = genResult.automationNotes || ("Generated via Editorial Memory Pipeline · Score: " + rowData.founderScore + "/10 (" + rawParsed.scoreDescriptor + ")");
+
+    // STEP 10, 11, 12: Write to sheet, read back and verify non-empty, ONLY THEN update status to "Generated"
+    writeGenerationResult(sheet, rowNumber, jsonStr, preview, aiNotes, rowData.founderScore, cols);
+
     return { success: true, title: rowData.title };
   } catch (err) {
-    var errMsg = err.toString();
-    logGenerationError(rowNumber, errMsg);
+    var errMsg = err.message || err.toString();
+    logGenerationError(sheet, rowNumber, errMsg, cols);
     return { success: false, error: errMsg };
   }
 }
 
-function writeGenerationResult(rowNumber, jsonStr, preview, aiNotes, founderScore) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+/**
+ * STEP 10, 11, 12: Writes JSON atomically and performs read-back verification before setting Status = Generated.
+ */
+function writeGenerationResult(sheet, rowNumber, jsonStr, preview, aiNotes, founderScore, cols) {
+  // FINAL OUTPUT GUARD: Ensure generated JSON is non-empty string
+  if (!jsonStr || typeof jsonStr !== "string" || jsonStr.trim().length === 0) {
+    throw new Error("Output Guard Error: Cannot write empty JSON to sheet.");
+  }
+
+  if (!cols || !cols.GENERATED_JSON || cols.GENERATED_JSON < 1) {
+    throw new Error("Target Column Resolution Error: 'Generated Review / JSON' column could not be found on sheet.");
+  }
+
   var now = new Date().toISOString();
 
-  sheet.getRange(rowNumber, CONFIG.COL.GENERATION_STATUS).setValue(CONFIG.STATUS.GENERATION.GENERATED);
-  sheet.getRange(rowNumber, CONFIG.COL.GENERATED_JSON).setValue(jsonStr);
-  sheet.getRange(rowNumber, CONFIG.COL.GENERATED_REVIEW_PREVIEW || CONFIG.COL.GENERATED_PREVIEW).setValue(preview);
-  sheet.getRange(rowNumber, CONFIG.COL.AI_NOTES).setValue(aiNotes);
-  sheet.getRange(rowNumber, CONFIG.COL.GENERATION_TIME).setValue(now);
+  // STEP 10: Write serialized JSON to the target Generated Review / JSON cell
+  var jsonCell = sheet.getRange(rowNumber, cols.GENERATED_JSON);
+  jsonCell.setValue(jsonStr);
 
-  // Set Editorial Status to AI_DRAFT_READY (Mandatory approval step)
-  sheet.getRange(rowNumber, CONFIG.COL.EDITORIAL_STATUS).setValue(CONFIG.STATUS.EDITORIAL.AI_DRAFT_READY);
-  sheet.getRange(rowNumber, CONFIG.COL.ERROR_LOG).setValue("");
-  sheet.getRange(rowNumber, CONFIG.COL.LAST_UPDATED).setValue(now);
+  if (cols.GENERATED_PREVIEW && cols.GENERATED_PREVIEW !== cols.GENERATED_JSON) {
+    sheet.getRange(rowNumber, cols.GENERATED_PREVIEW).setValue(preview);
+  }
+  if (cols.AI_NOTES && cols.AI_NOTES !== cols.GENERATED_JSON) {
+    sheet.getRange(rowNumber, cols.AI_NOTES).setValue(aiNotes);
+  }
+  if (cols.GENERATION_TIME && cols.GENERATION_TIME !== cols.GENERATED_JSON) {
+    sheet.getRange(rowNumber, cols.GENERATION_TIME).setValue(now);
+  }
+
+  // Force Google Sheets to write pending cell edits
+  SpreadsheetApp.flush();
+
+  // STEP 11: Immediately read back cell value and verify non-empty
+  var readBackJson = String(jsonCell.getValue() || "").trim();
+  if (!readBackJson || readBackJson.length === 0) {
+    throw new Error("Write Verification Failed: 'Generated Review / JSON' cell (Row " + rowNumber + ", Col " + cols.GENERATED_JSON + ") is empty after write.");
+  }
+
+  // STEP 12: ONLY AFTER SUCCESSFUL WRITE VERIFICATION:
+  // Advance Status to "Generated"
+  var statusCol = cols.STATUS || cols.EDITORIAL_STATUS || cols.GENERATION_STATUS;
+  if (statusCol) {
+    sheet.getRange(rowNumber, statusCol).setValue(CONFIG.STATUS.GENERATED);
+  }
+
+  if (cols.ERROR_LOG && cols.ERROR_LOG !== cols.GENERATED_JSON) {
+    sheet.getRange(rowNumber, cols.ERROR_LOG).setValue("");
+  }
+  if (cols.LAST_UPDATED && cols.LAST_UPDATED !== cols.GENERATED_JSON) {
+    sheet.getRange(rowNumber, cols.LAST_UPDATED).setValue(now);
+  }
+
+  SpreadsheetApp.flush();
 }
 
-function logGenerationError(rowNumber, errorMsg) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
-  sheet.getRange(rowNumber, CONFIG.COL.GENERATION_STATUS).setValue(CONFIG.STATUS.GENERATION.GENERATION_FAILED);
-  sheet.getRange(rowNumber, CONFIG.COL.ERROR_LOG).setValue(errorMsg);
-  sheet.getRange(rowNumber, CONFIG.COL.LAST_UPDATED).setValue(new Date().toISOString());
+function logGenerationError(sheet, rowNumber, errorMsg, cols) {
+  if (!sheet) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+  }
+  if (!cols) {
+    cols = getColumnMap(sheet);
+  }
+
+  var now = new Date().toISOString();
+  var statusCol = cols.STATUS || cols.GENERATION_STATUS || cols.EDITORIAL_STATUS;
+
+  if (statusCol) {
+    sheet.getRange(rowNumber, statusCol).setValue(CONFIG.STATUS.GENERATION_FAILED);
+  }
+
+  if (cols.ERROR_LOG && cols.ERROR_LOG !== cols.GENERATED_JSON) {
+    sheet.getRange(rowNumber, cols.ERROR_LOG).setValue(errorMsg);
+  }
+  if (cols.LAST_UPDATED && cols.LAST_UPDATED !== cols.GENERATED_JSON) {
+    sheet.getRange(rowNumber, cols.LAST_UPDATED).setValue(now);
+  }
+
+  SpreadsheetApp.flush();
 }
 
 // ==============================================================================
-// 7. GENERATION API ROUTING
+// 7. GENERATION API ROUTING & DIRECT GEMINI ENGINE WITH AUTOMATIC RETRIES
 // ==============================================================================
 function callGenerationApi(payload, conf) {
-  var url = conf.apiBaseUrl + "/api/automation/generate";
-  var options = {
-    method: "post",
-    headers: {
-      "X-Automation-Secret": conf.automationSecret,
-      "Content-Type": "application/json",
+  // If backend endpoint is configured, try calling /api/automation/generate with retry
+  if (conf.apiBaseUrl && conf.automationSecret) {
+    var maxBackendAttempts = 4;
+    var backendDelays = [2000, 5000, 10000];
+
+    for (var bAttempt = 1; bAttempt <= maxBackendAttempts; bAttempt++) {
+      try {
+        var url = conf.apiBaseUrl + "/api/automation/generate";
+        var options = {
+          method: "post",
+          headers: {
+            "X-Automation-Secret": conf.automationSecret,
+            "Content-Type": "application/json",
+          },
+          payload: JSON.stringify(payload),
+          muteHttpExceptions: true,
+        };
+
+        var response = UrlFetchApp.fetch(url, options);
+        var code = response.getResponseCode();
+        var body = response.getContentText();
+
+        if (code === 200) {
+          var parsedBody = JSON.parse(body);
+          if (parsedBody && parsedBody.success) {
+            return parsedBody;
+          }
+          throw new Error(parsedBody ? parsedBody.message || parsedBody.error : "Backend returned unparseable response");
+        }
+
+        var isRetryable = (code === 429 || code === 500 || code === 502 || code === 503 || code === 504);
+        if (isRetryable && bAttempt < maxBackendAttempts) {
+          var bWait = backendDelays[bAttempt - 1] || 10000;
+          Logger.log("Backend temporary error (HTTP " + code + ") on attempt " + bAttempt + "/" + maxBackendAttempts + ". Retrying in " + (bWait / 1000) + "s...");
+          Utilities.sleep(bWait);
+          continue;
+        }
+
+        if (!conf.geminiApiKey) {
+          if (!isRetryable) {
+            throw new Error("Backend API Error (HTTP " + code + " Non-Retryable): " + body);
+          } else {
+            throw new Error("Backend API generation failed after " + maxBackendAttempts + " attempts (HTTP " + code + "): " + body);
+          }
+        }
+        break; // If direct gemini api key is available, fall through to direct Gemini
+      } catch (e) {
+        if (!conf.geminiApiKey) throw e;
+        Logger.log("Backend route failed, using direct Gemini API: " + e.toString());
+        break;
+      }
+    }
+  }
+
+  // Direct Gemini fallback if GEMINI_API_KEY is configured in Script Properties
+  if (conf.geminiApiKey) {
+    return generateWithDirectGemini(payload, conf.geminiApiKey);
+  }
+
+  throw new Error("No AI generation engine configured. Please configure GEMINI_API_KEY in Script Properties.");
+}
+
+/**
+ * Direct Gemini API Generator with Exponential Backoff Retry Handling
+ * Preserves exact active endpoint: gemini-3.6-flash:generateContent
+ */
+function generateWithDirectGemini(payload, apiKey) {
+  var score = Number(payload.rating || payload.abstractScore || 8);
+  var quality = getScoreDescriptor(score);
+  var type = normalizeContentType(payload.contentType || payload.type) || "Movie";
+
+  var prompt = [
+    'You are the lead editorial writing assistant for "The Abstract Take" film and television critique publication.',
+    '',
+    'PRIMARY DIRECTIVE:',
+    'Translate the founder\'s raw viewing memories, personal reactions, and authoritative numerical rating into a rich, publication-ready critique.',
+    '',
+    'STRICT CONSTRAINTS (NON-NEGOTIABLE):',
+    '1. STRICT SCORE AUTHORITY: The founder\'s score is ' + score + '/10 (' + quality + '). You MUST NOT change this score.',
+    '2. STRICT MEDIA TYPE CONSTRAINT: "type" MUST be EXACTLY one of: "Movie", "Series", "Anime", "Documentary", "Mini Series", "Special". Specifically, "Mini Series" MUST have a single space and NO hyphen (never "Mini - Series" or "Mini-Series").',
+    '3. STRICT SHOULD YOU WATCH CONSTRAINT: "shouldYouWatch" MUST be EXACTLY one of: "Must Watch", "Recommended", "For Fans", "Skip". NEVER output free-form sentences in shouldYouWatch.',
+    '4. GROUNDED EDITORIAL SIGNALS: Extract and build upon the founder\'s provided reactions without inventing fabricated personal memories.',
+    '5. TARGET LENGTH: ' + (payload.targetLength || 'Standard Take') + ' (~280 words).',
+    '',
+    'FOUNDER INPUTS:',
+    '- TITLE: ' + payload.title + ' (' + payload.releaseYear + ')',
+    '- MEDIA FORMAT: ' + type,
+    '- AUTHORITATIVE SCORE: ' + score + '/10 (' + quality + ')',
+    '- CORE THESIS: ' + (payload.rawTake || 'None provided'),
+    '- WHAT WORKED: ' + (payload.likes || 'None provided'),
+    '- WHAT DIDNT: ' + (payload.dislikes || 'None provided'),
+    '- PERSONAL VERDICT: ' + (payload.personalVerdict || 'None provided'),
+    '- MEMORY NOTES: ' + (payload.memoryNotes || 'None provided'),
+    '',
+    'OUTPUT FORMAT:',
+    'Return ONLY a valid, parseable JSON object matching this schema:',
+    '{',
+    '  "title": "' + payload.title + '",',
+    '  "releaseYear": ' + payload.releaseYear + ',',
+    '  "type": "' + type + '",',
+    '  "abstractScore": ' + score + ',',
+    '  "scoreDescriptor": "' + quality + '",',
+    '  "headline": "Compelling editorial headline",',
+    '  "myTake": "1-2 sentence core thesis statement",',
+    '  "pros": ["Strength 1", "Strength 2"],',
+    '  "cons": ["Flaw 1"],',
+    '  "verdictText": "Personal verdict statement",',
+    '  "shouldYouWatch": "' + normalizeWatchVerdict(null, score) + '",',
+    '  "longFormReview": "Structured critique in fluid paragraphs.",',
+    '  "spoilerFreeTake": "Concise 1-2 sentence spoiler-free takeaway.",',
+    '  "recommendationMetadata": { "themes": ["Theme1"], "moods": ["Mood1"] },',
+    '  "generationMetadata": { "source": "editorial-memory-pipeline", "founderScore": true, "founderNotesProvided": true, "requiresEditorialApproval": true }',
+    '}',
+  ].join('\n');
+
+  // Exact active endpoint preserved
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + apiKey;
+  var requestPayload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
     },
-    payload: JSON.stringify(payload),
+  };
+
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(requestPayload),
     muteHttpExceptions: true,
   };
 
-  var response = UrlFetchApp.fetch(url, options);
-  var code = response.getResponseCode();
-  var body = response.getContentText();
+  var maxAttempts = CONFIG.RETRY.MAX_ATTEMPTS || 4;
+  var retryDelays = CONFIG.RETRY.DELAYS_MS || [2000, 5000, 10000];
+  var lastCode = 0;
+  var lastErrorMsg = "";
 
-  if (code !== 200) {
-    throw new Error("HTTP " + code + ": " + body);
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    var response;
+    var code;
+    var text;
+
+    try {
+      response = UrlFetchApp.fetch(url, options);
+      code = response.getResponseCode();
+      text = response.getContentText();
+    } catch (fetchErr) {
+      // Network/transport timeout exception
+      lastCode = 0;
+      lastErrorMsg = fetchErr.message || fetchErr.toString();
+      if (attempt < maxAttempts) {
+        var waitMs = retryDelays[attempt - 1] || 10000;
+        Logger.log("Gemini network error on attempt " + attempt + "/" + maxAttempts + ": " + lastErrorMsg + ". Retrying in " + (waitMs / 1000) + "s...");
+        Utilities.sleep(waitMs);
+        continue;
+      } else {
+        throw new Error("Gemini generation failed after " + maxAttempts + " attempts (Network/Transport Error): " + lastErrorMsg);
+      }
+    }
+
+    if (code === 200) {
+      var resJson;
+      try {
+        resJson = JSON.parse(text);
+      } catch (parseEnvelopeErr) {
+        throw new Error("Gemini API returned unparseable envelope JSON (HTTP 200): " + text);
+      }
+
+      if (!resJson || !resJson.candidates || !resJson.candidates.length) {
+        throw new Error("Gemini API returned response with no candidates: " + text);
+      }
+
+      var candidate = resJson.candidates[0];
+      if (!candidate || !candidate.content || !candidate.content.parts || !candidate.content.parts.length) {
+        throw new Error("Gemini candidate contains no content parts: " + JSON.stringify(candidate));
+      }
+
+      var candidateText = candidate.content.parts[0].text;
+      if (!candidateText || !candidateText.trim()) {
+        throw new Error("Gemini returned empty text output.");
+      }
+
+      var cleanJsonText = candidateText.trim();
+      var jsonMatch = cleanJsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanJsonText = jsonMatch[0];
+      }
+
+      var parsed;
+      try {
+        parsed = JSON.parse(cleanJsonText);
+      } catch (e) {
+        throw new Error("Failed to parse Gemini output as JSON: " + e.message + "\nRaw text: " + candidateText);
+      }
+
+      return {
+        success: true,
+        generatedJson: JSON.stringify(parsed),
+        data: parsed,
+        automationNotes: "Generated via Gemini 3.6 Flash Direct API · Score: " + score + "/10 (" + quality + ")" + (attempt > 1 ? " (Attempt " + attempt + ")" : ""),
+      };
+    }
+
+    // Check if error is retryable (429, 500, 502, 503, 504)
+    lastCode = code;
+    var parsedErrMsg = text;
+    try {
+      var errJson = JSON.parse(text);
+      if (errJson && errJson.error && errJson.error.message) {
+        parsedErrMsg = errJson.error.message;
+      }
+    } catch (e) {}
+    lastErrorMsg = parsedErrMsg;
+
+    var isRetryable = (code === 429 || code === 500 || code === 502 || code === 503 || code === 504);
+
+    if (isRetryable && attempt < maxAttempts) {
+      var waitMs = retryDelays[attempt - 1] || 10000;
+      Logger.log("Gemini temporary error (HTTP " + code + ") on attempt " + attempt + "/" + maxAttempts + ": " + lastErrorMsg + ". Retrying in " + (waitMs / 1000) + "s...");
+      Utilities.sleep(waitMs);
+      continue;
+    }
+
+    // Non-retryable error (e.g. 400, 401, 403) or retries exhausted
+    if (!isRetryable) {
+      throw new Error("Gemini API Error (HTTP " + code + " Non-Retryable): " + lastErrorMsg);
+    } else {
+      throw new Error("Gemini generation failed after " + maxAttempts + " attempts (HTTP " + code + "): " + lastErrorMsg);
+    }
   }
 
-  return JSON.parse(body);
+  throw new Error("Gemini generation failed after " + maxAttempts + " attempts (HTTP " + lastCode + "): " + lastErrorMsg);
 }
 
 // ==============================================================================
@@ -480,7 +957,7 @@ function generateReviewForActiveRow() {
   var res = generateReviewForRow(activeRow);
 
   if (res.success) {
-    SpreadsheetApp.getUi().alert("✅ Review generated successfully for \"" + res.title + "\"!\n\nEditorial Status set to: AI_DRAFT_READY");
+    SpreadsheetApp.getUi().alert("✅ Review generated successfully for \"" + res.title + "\"!\n\nStatus set to: Generated");
   } else {
     SpreadsheetApp.getUi().alert("❌ Generation failed for row " + activeRow + ":\n\n" + res.error);
   }
@@ -496,18 +973,22 @@ function generateApprovedRows() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+    var cols = getColumnMap(sheet);
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return;
 
-    var genStatusCol = sheet.getRange(2, CONFIG.COL.GENERATION_STATUS, lastRow - 1, 1).getValues();
+    var statusColIdx = cols.STATUS || cols.GENERATION_STATUS || 7;
+    var genStatusCol = sheet.getRange(2, statusColIdx, lastRow - 1, 1).getValues();
     var processedCount = 0;
     var successCount = 0;
 
     for (var i = 0; i < genStatusCol.length; i++) {
       if (processedCount >= CONFIG.MAX_BATCH_SIZE) break;
 
-      var status = String(genStatusCol[i][0] || "").trim();
-      if (status === CONFIG.STATUS.GENERATION.READY_FOR_GENERATION) {
+      var rawStatus = String(genStatusCol[i][0] || "").trim();
+      var normStatus = normalizeWorkflowStatus(rawStatus);
+
+      if (normStatus === CONFIG.STATUS.READY_FOR_GENERATION) {
         var rowNum = i + 2;
         processedCount++;
         var res = generateReviewForRow(rowNum);
@@ -516,7 +997,7 @@ function generateApprovedRows() {
     }
 
     if (processedCount === 0) {
-      SpreadsheetApp.getUi().alert("No rows found with Generation Status = 'READY_FOR_GENERATION'.\n\nMark rows as READY_FOR_GENERATION to queue them.");
+      SpreadsheetApp.getUi().alert("No rows found with Status = 'Ready For Generation'.\n\nMark rows as 'Ready For Generation' to queue them.");
     } else {
       SpreadsheetApp.getUi().alert("⚡ Batch Complete:\n\nProcessed: " + processedCount + "\nSuccessful: " + successCount + "\nFailed: " + (processedCount - successCount));
     }
@@ -527,45 +1008,65 @@ function generateApprovedRows() {
 
 function markSelectedReadyForEditorial() {
   var sheet = SpreadsheetApp.getActiveSheet();
+  var cols = getColumnMap(sheet);
   var row = sheet.getActiveCell().getRow();
   if (row < 2) return;
 
-  sheet.getRange(row, CONFIG.COL.EDITORIAL_STATUS).setValue(CONFIG.STATUS.EDITORIAL.NEEDS_REVIEW);
-  sheet.getRange(row, CONFIG.COL.LAST_UPDATED).setValue(new Date().toISOString());
-  SpreadsheetApp.getActiveSpreadsheet().toast("Marked row " + row + " as NEEDS_REVIEW.", "Editorial Workflow", 3);
+  var statusCol = cols.STATUS || cols.EDITORIAL_STATUS || 7;
+  sheet.getRange(row, statusCol).setValue(CONFIG.STATUS.NEEDS_REVIEW);
+  if (cols.LAST_UPDATED) {
+    sheet.getRange(row, cols.LAST_UPDATED).setValue(new Date().toISOString());
+  }
+  SpreadsheetApp.getActiveSpreadsheet().toast("Marked row " + row + " as 'Needs Review'.", "Editorial Workflow", 3);
 }
 
 function approveSelectedReview() {
   var sheet = SpreadsheetApp.getActiveSheet();
+  var cols = getColumnMap(sheet);
   var row = sheet.getActiveCell().getRow();
   if (row < 2) return;
 
-  var genJson = String(sheet.getRange(row, CONFIG.COL.GENERATED_JSON).getValue() || "").trim();
+  var genJsonCol = cols.GENERATED_JSON || 8;
+  var genJson = String(sheet.getRange(row, genJsonCol).getValue() || "").trim();
   if (!genJson) {
-    SpreadsheetApp.getUi().alert("Cannot approve row " + row + ": No generated JSON exists.");
+    SpreadsheetApp.getUi().alert("Cannot approve row " + row + ": No generated JSON exists in column " + genJsonCol + ".");
     return;
   }
 
   var now = new Date().toISOString();
-  sheet.getRange(row, CONFIG.COL.EDITORIAL_STATUS).setValue(CONFIG.STATUS.EDITORIAL.APPROVED);
-  sheet.getRange(row, CONFIG.COL.FINAL_APPROVED_JSON).setValue(genJson);
-  sheet.getRange(row, CONFIG.COL.APPROVED_BY).setValue("Founder / Chief Editor");
-  sheet.getRange(row, CONFIG.COL.APPROVAL_TIME).setValue(now);
-  sheet.getRange(row, CONFIG.COL.LAST_UPDATED).setValue(now);
+  var statusCol = cols.STATUS || cols.EDITORIAL_STATUS || 7;
+  sheet.getRange(row, statusCol).setValue(CONFIG.STATUS.APPROVED);
+
+  if (cols.FINAL_APPROVED_JSON && cols.FINAL_APPROVED_JSON !== genJsonCol) {
+    sheet.getRange(row, cols.FINAL_APPROVED_JSON).setValue(genJson);
+  }
+  if (cols.APPROVED_BY) {
+    sheet.getRange(row, cols.APPROVED_BY).setValue("Founder / Chief Editor");
+  }
+  if (cols.APPROVAL_TIME) {
+    sheet.getRange(row, cols.APPROVAL_TIME).setValue(now);
+  }
+  if (cols.LAST_UPDATED) {
+    sheet.getRange(row, cols.LAST_UPDATED).setValue(now);
+  }
 
   SpreadsheetApp.getUi().alert("✅ Review for row " + row + " approved!\n\nReady for CMS Draft Import.");
 }
 
 function validateSelectedReview() {
   var sheet = SpreadsheetApp.getActiveSheet();
+  var cols = getColumnMap(sheet);
   var row = sheet.getActiveCell().getRow();
   if (row < 2) return;
 
-  var genJson = String(sheet.getRange(row, CONFIG.COL.GENERATED_JSON).getValue() || "").trim();
-  var expectedScore = Number(sheet.getRange(row, CONFIG.COL.FOUNDER_SCORE).getValue());
+  var genJsonCol = cols.GENERATED_JSON || 8;
+  var scoreCol = cols.FOUNDER_SCORE || 4;
+
+  var genJson = String(sheet.getRange(row, genJsonCol).getValue() || "").trim();
+  var expectedScore = Number(sheet.getRange(row, scoreCol).getValue());
 
   if (!genJson) {
-    SpreadsheetApp.getUi().alert("No JSON to validate for row " + row + ".");
+    SpreadsheetApp.getUi().alert("No JSON found in column " + genJsonCol + " for row " + row + ".");
     return;
   }
 
@@ -573,14 +1074,32 @@ function validateSelectedReview() {
     var parsed = JSON.parse(genJson);
     var score = parsed.abstractScore || parsed.score;
     var title = parsed.title;
+    var type = parsed.type;
+    var shouldYouWatch = parsed.shouldYouWatch;
 
     var issues = [];
     if (!title) issues.push("Missing title.");
     if (score !== expectedScore) issues.push("Score mismatch: JSON has " + score + ", founder set " + expectedScore + ".");
     if (!parsed.longFormReview && !parsed.editorialReview) issues.push("Missing review body.");
 
+    // Media type validation
+    if (!type || CANONICAL_MEDIA_TYPES.indexOf(type) === -1) {
+      issues.push('Invalid MediaType "' + type + '". Must be exactly one of: ' + CANONICAL_MEDIA_TYPES.join(", "));
+    }
+
+    // Should You Watch validation
+    if (!shouldYouWatch || CANONICAL_WATCH_VERDICTS.indexOf(shouldYouWatch) === -1) {
+      issues.push('Invalid shouldYouWatch "' + shouldYouWatch + '". Must be exactly one of: ' + CANONICAL_WATCH_VERDICTS.join(", "));
+    }
+
     if (issues.length === 0) {
-      SpreadsheetApp.getUi().alert("✅ Review JSON is valid!\n\nTitle: " + title + "\nScore: " + score + "/10 (Verified Authority)\nFormat: " + parsed.type);
+      SpreadsheetApp.getUi().alert(
+        "✅ Review JSON is valid!\n\n" +
+        "Title: " + title + "\n" +
+        "Score: " + score + "/10 (" + (parsed.scoreDescriptor || getScoreDescriptor(score)) + " - Verified Authority)\n" +
+        "Format: " + type + " (Canonical)\n" +
+        "Verdict: " + shouldYouWatch + " (Canonical)"
+      );
     } else {
       SpreadsheetApp.getUi().alert("⚠️ Validation Issues Found:\n\n• " + issues.join("\n• "));
     }
@@ -596,19 +1115,26 @@ function importApprovedToCms() {
   var conf = getScriptConfig();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+  var cols = getColumnMap(sheet);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
 
-  var rows = sheet.getRange(2, 1, lastRow - 1, 34).getValues();
+  var maxCol = Math.max(sheet.getLastColumn(), 34);
+  var rows = sheet.getRange(2, 1, lastRow - 1, maxCol).getValues();
   var approvedPayloads = [];
   var rowNumbers = [];
 
-  for (var i = 0; i < rows.length; i++) {
-    var edStatus = String(rows[i][CONFIG.COL.EDITORIAL_STATUS - 1] || "").trim();
-    var importStatus = String(rows[i][CONFIG.COL.CMS_IMPORT_STATUS - 1] || "").trim();
-    var approvedJson = String(rows[i][CONFIG.COL.FINAL_APPROVED_JSON - 1] || rows[i][CONFIG.COL.GENERATED_JSON - 1] || "").trim();
+  var statusCol = cols.STATUS || cols.EDITORIAL_STATUS || 7;
+  var importStatusCol = cols.CMS_IMPORT_STATUS;
+  var jsonCol = cols.FINAL_APPROVED_JSON || cols.GENERATED_JSON || 8;
 
-    if (edStatus === CONFIG.STATUS.EDITORIAL.APPROVED && importStatus !== CONFIG.STATUS.CMS_IMPORT.IMPORTED_TO_CMS && approvedJson) {
+  for (var i = 0; i < rows.length; i++) {
+    var rawStatus = String(rows[i][statusCol - 1] || "").trim();
+    var edStatus = normalizeWorkflowStatus(rawStatus);
+    var importStatus = importStatusCol ? String(rows[i][importStatusCol - 1] || "").trim() : "";
+    var approvedJson = String(rows[i][jsonCol - 1] || "").trim();
+
+    if (edStatus === CONFIG.STATUS.APPROVED && importStatus !== "IMPORTED_TO_CMS" && approvedJson) {
       try {
         var parsed = JSON.parse(approvedJson);
         parsed.rowId = "sheet-row-" + (i + 2);
@@ -619,7 +1145,7 @@ function importApprovedToCms() {
   }
 
   if (approvedPayloads.length === 0) {
-    SpreadsheetApp.getUi().alert("No unimported APPROVED reviews found.\n\nApprove reviews first (Editorial Status = 'APPROVED').");
+    SpreadsheetApp.getUi().alert("No unimported APPROVED reviews found.\n\nApprove reviews first (Status = 'Approved').");
     return;
   }
 
@@ -650,16 +1176,28 @@ function importApprovedToCms() {
 
     for (var j = 0; j < rowNumbers.length; j++) {
       var rNum = rowNumbers[j];
-      sheet.getRange(rNum, CONFIG.COL.CMS_IMPORT_STATUS).setValue(CONFIG.STATUS.CMS_IMPORT.IMPORTED_TO_CMS);
-      sheet.getRange(rNum, CONFIG.COL.WEBSITE_PUB_STATUS).setValue(CONFIG.STATUS.WEBSITE_PUB.DRAFT);
-      sheet.getRange(rNum, CONFIG.COL.PUB_TIME).setValue(now);
-      sheet.getRange(rNum, CONFIG.COL.LAST_UPDATED).setValue(now);
+      // Mark as Published or keep status
+      sheet.getRange(rNum, statusCol).setValue(CONFIG.STATUS.PUBLISHED);
+
+      if (cols.CMS_IMPORT_STATUS) {
+        sheet.getRange(rNum, cols.CMS_IMPORT_STATUS).setValue("IMPORTED_TO_CMS");
+      }
+      if (cols.WEBSITE_PUB_STATUS) {
+        sheet.getRange(rNum, cols.WEBSITE_PUB_STATUS).setValue("DRAFT");
+      }
+      if (cols.PUB_TIME) {
+        sheet.getRange(rNum, cols.PUB_TIME).setValue(now);
+      }
+      if (cols.LAST_UPDATED) {
+        sheet.getRange(rNum, cols.LAST_UPDATED).setValue(now);
+      }
     }
 
     SpreadsheetApp.getUi().alert(
       "✅ CMS Draft Import Succeeded!\n\n" +
       "Imported to CMS: " + resultJson.importedCount + " (Saved as DRAFTS)\n" +
       "Duplicates Skipped: " + resultJson.skippedCount + "\n\n" +
+      "Status set to: Published\n" +
       "The founder can now review and publish these takes directly in the CMS Editor."
     );
   } catch (err) {
@@ -670,17 +1208,23 @@ function importApprovedToCms() {
 function exportApprovedReviewsModal() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+  var cols = getColumnMap(sheet);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
 
-  var rows = sheet.getRange(2, 1, lastRow - 1, 34).getValues();
+  var maxCol = Math.max(sheet.getLastColumn(), 34);
+  var rows = sheet.getRange(2, 1, lastRow - 1, maxCol).getValues();
   var exportList = [];
 
-  for (var i = 0; i < rows.length; i++) {
-    var edStatus = String(rows[i][CONFIG.COL.EDITORIAL_STATUS - 1] || "").trim();
-    var jsonStr = String(rows[i][CONFIG.COL.FINAL_APPROVED_JSON - 1] || rows[i][CONFIG.COL.GENERATED_JSON - 1] || "").trim();
+  var statusCol = cols.STATUS || cols.EDITORIAL_STATUS || 7;
+  var jsonCol = cols.FINAL_APPROVED_JSON || cols.GENERATED_JSON || 8;
 
-    if (edStatus === CONFIG.STATUS.EDITORIAL.APPROVED && jsonStr) {
+  for (var i = 0; i < rows.length; i++) {
+    var rawStatus = String(rows[i][statusCol - 1] || "").trim();
+    var edStatus = normalizeWorkflowStatus(rawStatus);
+    var jsonStr = String(rows[i][jsonCol - 1] || "").trim();
+
+    if (edStatus === CONFIG.STATUS.APPROVED && jsonStr) {
       try {
         exportList.push(JSON.parse(jsonStr));
       } catch (e) {}
@@ -700,45 +1244,116 @@ function exportApprovedReviewsModal() {
 function showPipelineStatus() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+  var cols = getColumnMap(sheet);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) {
     SpreadsheetApp.getUi().alert("Sheet has no review rows.");
     return;
   }
 
-  var rows = sheet.getRange(2, 1, lastRow - 1, 34).getValues();
+  var maxCol = Math.max(sheet.getLastColumn(), 34);
+  var rows = sheet.getRange(2, 1, lastRow - 1, maxCol).getValues();
   var counts = {
     total: rows.length,
+    idea: 0,
     readyGen: 0,
+    generating: 0,
     generated: 0,
-    draftReady: 0,
+    needsReview: 0,
     approved: 0,
-    imported: 0,
+    published: 0,
+    rewatch: 0,
     failed: 0,
   };
 
-  for (var i = 0; i < rows.length; i++) {
-    var gen = String(rows[i][CONFIG.COL.GENERATION_STATUS - 1] || "").trim();
-    var ed = String(rows[i][CONFIG.COL.EDITORIAL_STATUS - 1] || "").trim();
-    var imp = String(rows[i][CONFIG.COL.CMS_IMPORT_STATUS - 1] || "").trim();
+  var statusCol = cols.STATUS || cols.EDITORIAL_STATUS || 7;
 
-    if (gen === CONFIG.STATUS.GENERATION.READY_FOR_GENERATION) counts.readyGen++;
-    if (gen === CONFIG.STATUS.GENERATION.GENERATED) counts.generated++;
-    if (gen === CONFIG.STATUS.GENERATION.GENERATION_FAILED) counts.failed++;
-    if (ed === CONFIG.STATUS.EDITORIAL.AI_DRAFT_READY) counts.draftReady++;
-    if (ed === CONFIG.STATUS.EDITORIAL.APPROVED) counts.approved++;
-    if (imp === CONFIG.STATUS.CMS_IMPORT.IMPORTED_TO_CMS) counts.imported++;
+  for (var i = 0; i < rows.length; i++) {
+    var raw = String(rows[i][statusCol - 1] || "").trim();
+    var st = normalizeWorkflowStatus(raw);
+
+    if (st === CONFIG.STATUS.IDEA) counts.idea++;
+    else if (st === CONFIG.STATUS.READY_FOR_GENERATION) counts.readyGen++;
+    else if (st === CONFIG.STATUS.GENERATING) counts.generating++;
+    else if (st === CONFIG.STATUS.GENERATED) counts.generated++;
+    else if (st === CONFIG.STATUS.NEEDS_REVIEW) counts.needsReview++;
+    else if (st === CONFIG.STATUS.APPROVED) counts.approved++;
+    else if (st === CONFIG.STATUS.PUBLISHED) counts.published++;
+    else if (st === CONFIG.STATUS.REWATCH_REQUIRED) counts.rewatch++;
+    else if (st === CONFIG.STATUS.GENERATION_FAILED) counts.failed++;
+    else if (raw) counts.idea++;
   }
 
   SpreadsheetApp.getUi().alert(
     "📊 The Abstract Take — Pipeline Status\n\n" +
     "Total Rows: " + counts.total + "\n\n" +
-    "• Ready for Generation: " + counts.readyGen + "\n" +
-    "• AI Generated: " + counts.generated + "\n" +
-    "• Awaiting Editorial Review: " + counts.draftReady + "\n" +
-    "• Founder Approved: " + counts.approved + "\n" +
-    "• Imported to CMS (Drafts): " + counts.imported + "\n" +
-    "• Generation Failed / Errors: " + counts.failed
+    "• Idea: " + counts.idea + "\n" +
+    "• Ready For Generation: " + counts.readyGen + "\n" +
+    "• Generating: " + counts.generating + "\n" +
+    "• Generated: " + counts.generated + "\n" +
+    "• Needs Review: " + counts.needsReview + "\n" +
+    "• Approved: " + counts.approved + "\n" +
+    "• Published: " + counts.published + "\n" +
+    "• Rewatch Required: " + counts.rewatch + "\n" +
+    "• Generation Failed: " + counts.failed
+  );
+}
+
+function setupSheetTemplate() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME) || ss.getActiveSheet();
+  sheet.setName(CONFIG.SHEET_NAME);
+
+  var headers = [
+    // A–H: Canonical Primary Flow
+    "Title", "Year", "Media Type", "Score", "Memory Confidence",
+    "Notes & User Pointers", "Status", "Generated Review / JSON",
+  ];
+
+  var headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange.setValues([headers]);
+  headerRange.setFontWeight("bold");
+  headerRange.setBackground("#0F172A"); // Slate-900
+  headerRange.setFontColor("#F8FAFC");
+  headerRange.setFontFamily("Consolas");
+  headerRange.setHorizontalAlignment("center");
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
+
+  var maxRows = Math.max(sheet.getMaxRows(), 300);
+
+  // Content Type Dropdown (Col C / 3)
+  var typeRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(CANONICAL_MEDIA_TYPES, true)
+    .build();
+  sheet.getRange(2, 3, maxRows - 1, 1).setDataValidation(typeRule);
+
+  // Score Dropdown (Col D / 4)
+  var scoreRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["10", "9", "8", "7", "6", "5", "4", "3", "2", "1"], true)
+    .build();
+  sheet.getRange(2, 4, maxRows - 1, 1).setDataValidation(scoreRule);
+
+  // Status Dropdown (Col G / 7)
+  var statusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(CONFIG.CANONICAL_STATUS_LIST, true)
+    .build();
+  sheet.getRange(2, 7, maxRows - 1, 1).setDataValidation(statusRule);
+
+  // Column Widths
+  sheet.setColumnWidth(1, 180);
+  sheet.setColumnWidth(2, 80);
+  sheet.setColumnWidth(3, 120);
+  sheet.setColumnWidth(4, 70);
+  sheet.setColumnWidth(5, 140);
+  sheet.setColumnWidth(6, 260);
+  sheet.setColumnWidth(7, 160);
+  sheet.setColumnWidth(8, 360);
+
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    "Editorial Pipeline Sheet Template successfully initialized with canonical dropdowns!",
+    "Template Ready",
+    5
   );
 }
 

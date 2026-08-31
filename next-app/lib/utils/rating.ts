@@ -170,6 +170,15 @@ export const RATING_SCALE_MAP: Record<number, RatingScaleDefinition> = RATING_SC
   {} as Record<number, RatingScaleDefinition>
 );
 
+import { WatchVerdict } from '@/types';
+
+export const CANONICAL_WATCH_VERDICTS: WatchVerdict[] = [
+  'Must Watch',
+  'Recommended',
+  'For Fans',
+  'Skip',
+];
+
 /**
  * Normalizes any score value to the standard 1–10 integer scale.
  */
@@ -182,6 +191,34 @@ export function normalizeScore(score: number): number {
 }
 
 export const normalizeRating = normalizeScore;
+
+/**
+ * Normalizes any raw verdict or derives a canonical WatchVerdict from the authoritative score.
+ * Preferred score defaults:
+ * 10, 9 -> "Must Watch"
+ * 8, 7, 6 -> "Recommended"
+ * 5 -> "For Fans"
+ * 4, 3, 2, 1 -> "Skip"
+ */
+export function normalizeWatchVerdict(verdict?: string | null, score?: number): WatchVerdict {
+  if (verdict && typeof verdict === 'string') {
+    const v = verdict.trim();
+    if (
+      v === 'Must Watch' ||
+      v === 'Recommended' ||
+      v === 'For Fans' ||
+      v === 'Skip'
+    ) {
+      return v as WatchVerdict;
+    }
+  }
+
+  const normScore = typeof score === 'number' ? normalizeScore(score) : 8;
+  if (normScore >= 9) return 'Must Watch';
+  if (normScore >= 6) return 'Recommended';
+  if (normScore >= 5) return 'For Fans';
+  return 'Skip';
+}
 
 /**
  * Returns the exact editorial word descriptor for a 1-10 Abstract Score

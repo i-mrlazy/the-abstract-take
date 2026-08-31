@@ -6,22 +6,22 @@ import { Heart, Settings } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="bg-[#111111] text-white border-t border-gray-800 pt-14 pb-8 text-left mt-20">
+    <footer className="bg-[#111111] text-white border-t border-gray-800 pt-12 sm:pt-14 pb-8 text-left mt-16 sm:mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Newsletter Section */}
-        <div className="mb-14">
+        <div className="mb-12 sm:mb-14">
           <NewsletterSubscribeForm />
         </div>
 
         {/* Brand & Footer Nav Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 pb-12 border-b border-gray-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 pb-12 border-b border-gray-800 min-w-0">
           {/* Col 1: Brand */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="sm:col-span-2 lg:col-span-2 space-y-4 min-w-0">
             <Link href="/" className="inline-flex items-center space-x-2.5 group">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#008CFF] to-[#00C0FF] flex items-center justify-center text-black font-black text-sm group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#008CFF] to-[#00C0FF] flex items-center justify-center text-black font-black text-sm group-hover:scale-105 transition-transform shrink-0">
                 AT
               </div>
-              <span className="font-serif font-black text-xl text-white group-hover:text-[#00C0FF] transition-colors">
+              <span className="font-serif font-black text-xl text-white group-hover:text-[#00C0FF] transition-colors truncate">
                 The Abstract Take
               </span>
             </Link>
@@ -34,7 +34,7 @@ export function Footer() {
           </div>
 
           {/* Col 2: Review Archives */}
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
               Review Archives
             </h4>
@@ -78,7 +78,7 @@ export function Footer() {
           </div>
 
           {/* Col 3: Unified Discovery & Collections */}
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
               Discovery & Watchlists
             </h4>
@@ -107,7 +107,7 @@ export function Footer() {
           </div>
 
           {/* Col 4: Publication Ethos */}
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             <h4 className="font-sans font-bold text-xs uppercase tracking-wider text-[#008CFF]">
               Publication
             </h4>
@@ -144,7 +144,7 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 font-sans space-y-4 sm:space-y-0">
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 font-sans gap-4 text-center sm:text-left">
           <div>
             © {new Date().getFullYear()} The Abstract Take. All editorial opinions are personal.
           </div>

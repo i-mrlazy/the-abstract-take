@@ -57,7 +57,7 @@ export function BookmarksDrawer() {
         {/* Header */}
         <div className="p-5 bg-white text-gray-900 flex items-center justify-between border-b border-gray-100">
           <div className="flex items-center space-x-2.5 font-sans font-bold text-base text-[#111111]">
-            <div className="p-2 bg-blue-50 text-[#008CFF] rounded-xl border border-blue-100 shadow-2xs">
+            <div className="p-2 bg-blue-50 text-[#008CFF] rounded-xl border border-blue-100 shadow-2xs shrink-0">
               <Bookmark className="w-4 h-4 fill-[#008CFF]" />
             </div>
             <span>Saved Takes ({bookmarkedCount})</span>
@@ -106,12 +106,12 @@ export function BookmarksDrawer() {
               return (
                 <div
                   key={rev.id}
-                  className="p-3.5 bg-white border border-gray-200/90 rounded-2xl flex gap-3.5 hover:border-[#008CFF] hover:shadow-xs transition-all group"
+                  className="p-3.5 bg-white border border-gray-200/90 rounded-2xl flex gap-3.5 hover:border-[#008CFF] hover:shadow-xs transition-all group min-w-0"
                 >
                   <Link
                     href={`/reviews/${rev.slug}`}
                     onClick={closeDrawer}
-                    className="w-16 h-24 rounded-xl border border-gray-200 flex-shrink-0 overflow-hidden block bg-gray-900"
+                    className="w-16 h-24 rounded-xl border border-gray-200 shrink-0 overflow-hidden block bg-gray-900 relative"
                   >
                     <ReviewArtwork
                       title={rev.title}
@@ -124,27 +124,28 @@ export function BookmarksDrawer() {
                       abstractScore={rev.abstractScore}
                       preferredType="poster"
                       aspectRatio="portrait"
+                      sizes="64px"
                       alt={rev.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                   </Link>
 
-                  <div className="flex-1 flex flex-col justify-between">
-                    <div>
+                  <div className="flex-1 flex flex-col justify-between min-w-0">
+                    <div className="min-w-0">
                       <div className="flex items-start justify-between gap-1">
-                        <span className="text-[9px] font-mono font-bold uppercase bg-blue-50 text-[#008CFF] border border-blue-100 px-1.5 py-0.5 rounded">
+                        <span className="text-[9px] font-mono font-bold uppercase bg-blue-50 text-[#008CFF] border border-blue-100 px-1.5 py-0.5 rounded shrink-0">
                           {rev.type}
                         </span>
-                        <span className="text-xs font-mono font-bold text-[#008CFF]">
+                        <span className="text-xs font-mono font-bold text-[#008CFF] shrink-0">
                           {score}/10
                         </span>
                       </div>
-                      <h4 className="font-serif font-bold text-sm text-[#111111] group-hover:text-[#008CFF] transition-colors line-clamp-1 mt-1">
+                      <h4 className="font-serif font-bold text-sm text-[#111111] group-hover:text-[#008CFF] transition-colors line-clamp-2 mt-1 break-words">
                         <Link href={`/reviews/${rev.slug}`} onClick={closeDrawer}>
                           {rev.title}
                         </Link>
                       </h4>
-                      <p className="text-[10px] font-mono text-gray-400">
+                      <p className="text-[10px] font-mono text-gray-400 truncate">
                         {rev.releaseYear} • Dir. {rev.director}
                       </p>
                     </div>
@@ -153,14 +154,14 @@ export function BookmarksDrawer() {
                       <Link
                         href={`/reviews/${rev.slug}`}
                         onClick={closeDrawer}
-                        className="text-[10px] font-mono font-bold text-[#008CFF] flex items-center gap-0.5 hover:underline"
+                        className="text-[10px] font-mono font-bold text-[#008CFF] flex items-center gap-0.5 hover:underline shrink-0"
                       >
                         <span>View Take</span>
                         <ArrowRight className="w-3 h-3" />
                       </Link>
                       <button
                         onClick={() => removeBookmark(rev.id)}
-                        className="text-gray-400 hover:text-red-500 p-1 cursor-pointer transition-colors"
+                        className="text-gray-400 hover:text-red-500 p-1 cursor-pointer transition-colors shrink-0"
                         title="Remove from saved"
                         aria-label={`Remove ${rev.title} from saved takes`}
                       >

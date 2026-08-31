@@ -4,12 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Film,
-  Clapperboard,
-  Tv,
-  Sparkles,
-  Info,
-  Mail,
   Settings,
   Search,
   Bookmark,
@@ -99,20 +93,20 @@ export function TopNavbar() {
       {/* Top Utility Micro-Bar */}
       <div className="hidden md:block w-full bg-[#0A0A0A] border-b border-white/5 text-[11px] font-mono text-gray-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex items-center justify-between">
-          <div className="flex items-center space-x-3 whitespace-nowrap">
-            <div className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#008CFF] animate-pulse" />
+          <div className="flex items-center space-x-3 whitespace-nowrap min-w-0">
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-[#008CFF] animate-pulse shrink-0" />
               <span className="text-gray-300 font-bold uppercase tracking-widest">
                 CRITICAL FILM & TV ESSAYS
               </span>
             </div>
-            <span className="text-gray-700">|</span>
-            <span className="text-gray-400 font-sans italic text-xs">
+            <span className="text-gray-700 shrink-0">|</span>
+            <span className="text-gray-400 font-sans italic text-xs truncate">
               Personal takes on what’s truly worth watching.
             </span>
           </div>
 
-          <div className="flex items-center space-x-4 whitespace-nowrap">
+          <div className="flex items-center space-x-4 whitespace-nowrap shrink-0">
             <Link
               href="/admin"
               className="flex items-center space-x-1.5 text-gray-400 hover:text-white transition-colors cursor-pointer text-xs"
@@ -128,22 +122,22 @@ export function TopNavbar() {
       </div>
 
       {/* Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-2 lg:gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-3 min-w-0">
           {/* Left: Brand Identity (Links to Home /) */}
           <Link
             href="/"
-            className="flex items-center space-x-2.5 cursor-pointer group select-none flex-shrink-0"
+            className="flex items-center space-x-2 sm:space-x-2.5 cursor-pointer group select-none shrink-0 min-w-0"
             title="The Abstract Take — Home"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#008CFF] via-[#00C0FF] to-cyan-300 flex items-center justify-center text-black font-black text-base shadow-sm group-hover:scale-105 transition-transform duration-200">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-[#008CFF] via-[#00C0FF] to-cyan-300 flex items-center justify-center text-black font-black text-sm sm:text-base shadow-sm group-hover:scale-105 transition-transform duration-200 shrink-0">
               AT
             </div>
-            <div className="flex flex-col text-left">
-              <span className="font-serif font-black text-lg tracking-tight text-white group-hover:text-[#00C0FF] transition-colors leading-none">
+            <div className="flex flex-col text-left min-w-0">
+              <span className="font-serif font-black text-base sm:text-lg tracking-tight text-white group-hover:text-[#00C0FF] transition-colors leading-none truncate">
                 THE ABSTRACT TAKE
               </span>
-              <span className="text-[9.5px] font-mono uppercase tracking-widest text-gray-400 font-medium leading-tight mt-0.5">
+              <span className="text-[9px] sm:text-[9.5px] font-mono uppercase tracking-widest text-gray-400 font-medium leading-tight mt-0.5 truncate hidden sm:block">
                 Uncompromising Cinema Critique
               </span>
             </div>
@@ -252,11 +246,11 @@ export function TopNavbar() {
           </nav>
 
           {/* Action Icons */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
             {/* Search Trigger */}
             <Link
               href="/search"
-              className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer flex items-center space-x-2 bg-white/5 border border-white/10"
+              className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer flex items-center space-x-2 bg-white/5 border border-white/10 shrink-0"
               title="Search takes (Cmd+K)"
             >
               <Search className="w-4 h-4 text-[#00C0FF]" />
@@ -269,7 +263,7 @@ export function TopNavbar() {
             {/* Bookmarks Drawer Trigger */}
             <button
               onClick={openDrawer}
-              className="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-white/10"
+              className="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-white/10 shrink-0"
               title="Saved takes"
               aria-label={`Saved takes (${bookmarkedCount})`}
             >

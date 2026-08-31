@@ -10,7 +10,18 @@ import {
   resolveCanonicalMoods,
   resolveCanonicalGenres,
 } from './recommendationTaxonomy';
-import { normalizeScore, getQualityLabel, getRatingColorClasses } from '@/lib/utils/rating';
+import {
+  normalizeScore,
+  getQualityLabel,
+  getRatingColorClasses,
+  normalizeWatchVerdict,
+  CANONICAL_WATCH_VERDICTS,
+  ScoreDescriptor,
+} from '@/lib/utils/rating';
+import {
+  normalizeContentType,
+  CANONICAL_MEDIA_TYPES,
+} from '@/lib/utils/mediaType';
 import { slugify } from '@/lib/utils/slug';
 
 let aiClientInstance: GoogleGenAI | null = null;
@@ -77,6 +88,7 @@ export interface GeneratedReviewPayload {
   runtime: string;
   genres: string[];
   abstractScore: number;
+  scoreDescriptor: string;
   myTake: string;
   pros: string[];
   cons: string[];
@@ -117,10 +129,7 @@ export interface PipelineValidationResult {
 }
 
 export function getDerivedWatchVerdict(rating: number): WatchVerdict {
-  if (rating >= 8) return 'Must Watch';
-  if (rating >= 6) return 'Recommended';
-  if (rating >= 4) return 'For Fans';
-  return 'Skip';
+  return normalizeWatchVerdict(null, rating);
 }
 
 function parseListHelper(input?: string | string[]): string[] {
@@ -254,11 +263,18 @@ export function validateGeneratedReview(
     : resolveCanonicalMoods(String(rawMoods));
   const audienceExperience = Array.isArray(rawExperiences) ? rawExperiences.map(String) : [];
 
-  const cleanType: MediaType = (['Movie', 'Series', 'Mini Series', 'Anime', 'Documentary', 'Special'].includes(data.type)
-    ? data.type
-    : 'Movie') as MediaType;
+  // Media type validation & normalization (never silently fall back to Movie on invalid/unknown input)
+  const normalizedType = normalizeContentType(data.type || data.contentType);
+  if (!normalizedType) {
+    errors.push(`Invalid media type "${data.type || data.contentType}". Must be one of: ${CANONICAL_MEDIA_TYPES.join(', ')}.`);
+  }
+  const cleanType: MediaType = normalizedType || 'Movie';
+
+  // Strict Watch Verdict Normalization
+  const cleanShouldYouWatch = normalizeWatchVerdict(data.shouldYouWatch, score);
 
   const cleanYear = Number(data.releaseYear || data.year) || new Date().getFullYear();
+  const quality = getQualityLabel(score);
 
   if (errors.length > 0) {
     return { isValid: false, errors, warnings };
@@ -275,11 +291,12 @@ export function validateGeneratedReview(
     runtime: String(data.runtime || (cleanType === 'Movie' ? '2h 00m' : '45m / ep')).trim(),
     genres: Array.isArray(data.genres) && data.genres.length ? data.genres.map(String) : [cleanType, 'Cinema'],
     abstractScore: score,
+    scoreDescriptor: quality,
     myTake,
     pros: pros.length ? pros : ['Distinct stylistic conviction', 'Cohesive aesthetic execution'],
     cons,
     verdictText,
-    shouldYouWatch: data.shouldYouWatch || getDerivedWatchVerdict(score),
+    shouldYouWatch: cleanShouldYouWatch,
     longFormReview: reviewBody,
     spoilerFreeTake: data.spoilerFreeTake ? String(data.spoilerFreeTake).trim() : undefined,
     favoriteScene: data.favoriteScene ? String(data.favoriteScene).trim() : undefined,
@@ -302,7 +319,7 @@ export function validateGeneratedReview(
       requiresEditorialApproval: true,
       generatedAt: new Date().toISOString(),
     },
-    headline: String(data.headline || `${title}: A ${getQualityLabel(score)} Critique`).trim(),
+    headline: String(data.headline || `${title}: A ${quality} Critique`).trim(),
     seoDescription: String(
       data.seoDescription ||
         `The Abstract Take's review of ${title}: "${myTake.slice(0, 140)}..." Abstract Score: ${score}/10.`
@@ -326,7 +343,9 @@ export function generateOfflineMemoryReview(
   );
   const title = (input.title || 'Untitled Take').trim();
   const year = Number(input.releaseYear || input.year) || new Date().getFullYear();
-  const type = ((input.contentType || input.type || 'Movie') as MediaType);
+  const rawType = input.contentType || input.type || 'Movie';
+  const normType = normalizeContentType(rawType);
+  const type: MediaType = normType || 'Movie';
   const targetLength: ReviewLengthTier = input.targetLength || 'Standard Take';
 
   const rawTake = (input.rawTake || input.myTake || '').trim();
@@ -383,11 +402,12 @@ export function generateOfflineMemoryReview(
     runtime: (input.runtime || (type === 'Movie' ? '2h 00m' : '45m / ep')).trim(),
     genres: parseListHelper(input.genres).length ? parseListHelper(input.genres) : [type, 'Cinema'],
     abstractScore: normScore,
+    scoreDescriptor: quality,
     myTake,
     pros,
     cons,
     verdictText: personalVerdict || `${title} earns an official ${normScore}/10 (${quality}) on The Abstract Take.`,
-    shouldYouWatch: getDerivedWatchVerdict(normScore),
+    shouldYouWatch: normalizeWatchVerdict(null, normScore),
     longFormReview,
     spoilerFreeTake: personalVerdict || `A compelling ${quality.toLowerCase()} critique on The Abstract Take.`,
     favoriteScene: (input.favoriteScene || 'Opening sequence establishing tone and rhythm.').trim(),
@@ -438,7 +458,12 @@ export async function generateEditorialMemoryReview(
   );
   const title = (input.title || '').trim();
   const year = Number(input.releaseYear || input.year) || new Date().getFullYear();
-  const type = ((input.contentType || input.type || 'Movie') as MediaType);
+  const rawType = input.contentType || input.type || 'Movie';
+  const normType = normalizeContentType(rawType);
+  if (!normType) {
+    throw new Error(`Invalid media type "${rawType}". Must be one of: ${CANONICAL_MEDIA_TYPES.join(', ')}.`);
+  }
+  const type: MediaType = normType;
   const targetLength: ReviewLengthTier = input.targetLength || 'Standard Take';
   const lengthConfig = LENGTH_TIER_TARGETS[targetLength] || LENGTH_TIER_TARGETS['Standard Take'];
   const scoreConfig = SCORE_CALIBRATION_GUIDES[normScore] || SCORE_CALIBRATION_GUIDES[8];
@@ -466,11 +491,13 @@ You are translating the founder's raw viewing memories, personal reactions, and 
 STRICT CONSTRAINTS (NON-NEGOTIABLE):
 1. STRICT SCORE AUTHORITY: The founder's score is ${normScore}/10 (${scoreConfig.descriptor}). You MUST NOT change this score. The tone, thesis, pros, cons, and verdict MUST align with ${scoreConfig.descriptor} calibration.
    ${scoreConfig.guidance}
-2. GROUNDED EDITORIAL SIGNALS: You must extract and build upon the founder's provided positive/negative/emotional reactions.
+2. STRICT MEDIA TYPE CONSTRAINT: "type" MUST be EXACTLY one of: "Movie", "Series", "Anime", "Documentary", "Mini Series", "Special". Specifically, "Mini Series" MUST have a single space and NO hyphen (never "Mini - Series" or "Mini-Series").
+3. STRICT SHOULD YOU WATCH CONSTRAINT: "shouldYouWatch" MUST be EXACTLY one of: "Must Watch", "Recommended", "For Fans", "Skip". NEVER output free-form sentences or conversational phrases in shouldYouWatch.
+4. GROUNDED EDITORIAL SIGNALS: You must extract and build upon the founder's provided positive/negative/emotional reactions.
    NEVER invent personal memories or specific viewing occurrences that the founder did not state (e.g. do not invent "I watched this in 35mm with my family" or "I wept at the 40-minute mark" unless explicitly stated in memory notes).
-3. EDITORIAL STYLE: Thoughtful, cinematic, personal, and human. Avoid academic jargon and avoid generic AI filler phrases ("masterpiece of storytelling", "takes viewers on a journey", "delves deep into", "in today's world", "a visual feast").
-4. TARGET WORD COUNT: Target approximately ${lengthConfig.words} words for the main critique (acceptable range: ${lengthConfig.minWords} to ${lengthConfig.maxWords} words).
-5. TAXONOMY COMPATIBILITY: Output standardized genres (${TAXONOMY_GENRES.slice(0, 10).join(', ')}...), themes (${TAXONOMY_THEMES.slice(0, 10).join(', ')}...), and moods (${TAXONOMY_MOODS.slice(0, 10).join(', ')}...).
+5. EDITORIAL STYLE: Thoughtful, cinematic, personal, and human. Avoid academic jargon and avoid generic AI filler phrases ("masterpiece of storytelling", "takes viewers on a journey", "delves deep into", "in today's world", "a visual feast").
+6. TARGET WORD COUNT: Target approximately ${lengthConfig.words} words for the main critique (acceptable range: ${lengthConfig.minWords} to ${lengthConfig.maxWords} words).
+7. TAXONOMY COMPATIBILITY: Output standardized genres (${TAXONOMY_GENRES.slice(0, 10).join(', ')}...), themes (${TAXONOMY_THEMES.slice(0, 10).join(', ')}...), and moods (${TAXONOMY_MOODS.slice(0, 10).join(', ')}...).
 
 FOUNDER'S RAW INPUTS:
 - TITLE: ${title} (${year})
@@ -497,12 +524,13 @@ Return ONLY a valid, parseable JSON object matching this exact schema:
   "runtime": "Runtime string e.g. 2h 15m",
   "genres": ["Genre1", "Genre2"],
   "abstractScore": ${normScore},
+  "scoreDescriptor": "${scoreConfig.descriptor}",
   "headline": "Sharp, compelling 5-8 word editorial headline capturing the thesis",
   "myTake": "1-2 sentence core thesis statement for the signature 'My Take' badge",
   "pros": ["Specific strength directly grounded in founder likes", "Another specific strength"],
   "cons": ["Specific flaw or limitation directly grounded in founder dislikes"],
   "verdictText": "The personal verdict sentence matching the ${normScore}/10 rating",
-  "shouldYouWatch": "${getDerivedWatchVerdict(normScore)}",
+  "shouldYouWatch": "${normalizeWatchVerdict(null, normScore)}",
   "longFormReview": "The complete ${lengthConfig.words}-word structured critique in 2-4 fluid paragraphs.",
   "spoilerFreeTake": "Concise 1-2 sentence spoiler-free takeaway.",
   "favoriteScene": "${input.favoriteScene || 'Distinct scene highlighting tone'}",

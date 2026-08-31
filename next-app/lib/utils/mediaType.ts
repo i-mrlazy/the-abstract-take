@@ -1,3 +1,14 @@
+import { MediaType } from '@/types';
+
+export const CANONICAL_MEDIA_TYPES: MediaType[] = [
+  'Movie',
+  'Series',
+  'Anime',
+  'Documentary',
+  'Mini Series',
+  'Special',
+];
+
 /**
  * Authoritative Media Type Normalization Utility
  * Ensures consistent canonical media type filtering across UI, Recommendation Engine, and API routes.
@@ -11,6 +22,78 @@ export type CanonicalMediaType =
   | 'mini-series'
   | 'special'
   | 'any';
+
+/**
+ * Normalizes any human-entered or aliased string to the exact canonical MediaType union:
+ * 'Movie' | 'Series' | 'Anime' | 'Documentary' | 'Mini Series' | 'Special'
+ * Returns null if the value is unrecognized or invalid.
+ */
+export function normalizeContentType(type?: string | null): MediaType | null {
+  if (!type) return null;
+  const cleaned = type.toLowerCase().trim().replace(/[\s_-]+/g, '');
+
+  if (
+    cleaned === 'movie' ||
+    cleaned === 'movies' ||
+    cleaned === 'film' ||
+    cleaned === 'films' ||
+    cleaned === 'feature' ||
+    cleaned === 'featurefilm' ||
+    cleaned === 'featuremovie'
+  ) {
+    return 'Movie';
+  }
+
+  if (
+    cleaned === 'series' ||
+    cleaned === 'tvseries' ||
+    cleaned === 'tv' ||
+    cleaned === 'television' ||
+    cleaned === 'show' ||
+    cleaned === 'shows' ||
+    cleaned === 'tvshow'
+  ) {
+    return 'Series';
+  }
+
+  if (
+    cleaned === 'anime' ||
+    cleaned === 'animation' ||
+    cleaned === 'animefeature' ||
+    cleaned === 'animeseries'
+  ) {
+    return 'Anime';
+  }
+
+  if (
+    cleaned === 'documentary' ||
+    cleaned === 'documentaries' ||
+    cleaned === 'doc' ||
+    cleaned === 'docs'
+  ) {
+    return 'Documentary';
+  }
+
+  if (
+    cleaned === 'miniseries' ||
+    cleaned === 'limitedseries' ||
+    cleaned === 'miniserie'
+  ) {
+    return 'Mini Series';
+  }
+
+  if (
+    cleaned === 'special' ||
+    cleaned === 'specials' ||
+    cleaned === 'standalone'
+  ) {
+    return 'Special';
+  }
+
+  return null;
+}
+
+export const toCanonicalMediaType = normalizeContentType;
 
 /**
  * Normalizes any human-entered or legacy string to a strict CanonicalMediaType.
