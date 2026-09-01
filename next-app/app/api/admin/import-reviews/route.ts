@@ -15,6 +15,14 @@ function parseList(input?: string | string[]): string[] {
     .filter(Boolean);
 }
 
+function sanitizeErrorMessage(msg: string): string {
+  if (!msg) return 'Database validation or persistence error.';
+  let clean = msg.replace(/(?:postgres|postgresql|https?):\/\/[^\s]+/gi, '[REDACTED_URL]');
+  clean = clean.replace(/key=[a-zA-Z0-9_\-]+/gi, 'key=[REDACTED]');
+  clean = clean.replace(/password=[^\s&]+/gi, 'password=[REDACTED]');
+  return clean.slice(0, 300);
+}
+
 function mapCategory(type: MediaType): string {
   switch (type) {
     case 'Movie':
@@ -102,7 +110,10 @@ export async function POST(req: NextRequest) {
         failedItems.push({
           index,
           rowId: item.rowId,
+          title: 'Untitled Item',
+          reason: 'Title is required for import.',
           error: 'Title is required for import.',
+          field: 'title',
         });
         continue;
       }
@@ -287,11 +298,14 @@ export async function POST(req: NextRequest) {
         });
       } catch (saveErr: any) {
         console.error(`Import failed for item ${rawTitle}:`, saveErr);
+        const safeReason = sanitizeErrorMessage(saveErr.message || 'Database validation or persistence error');
         failedItems.push({
           index,
           rowId: item.rowId,
           title: rawTitle,
-          error: saveErr.message || 'Unknown database error',
+          reason: safeReason,
+          error: safeReason,
+          field: saveErr.field || undefined,
         });
       }
     }

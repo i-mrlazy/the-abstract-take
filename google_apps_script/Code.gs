@@ -1304,22 +1304,45 @@ function importApprovedToCms() {
 
     SpreadsheetApp.flush();
 
+    // Extract detailed failure diagnostics from API response
+    var failedDetails = [];
+    if (Array.isArray(resultJson.failed)) {
+      for (var f = 0; f < resultJson.failed.length; f++) {
+        var failItem = resultJson.failed[f];
+        var failTitle = failItem.title || "Submitted Review";
+        var failReason = failItem.reason || failItem.error || "Database persistence validation rejected this record.";
+        failedDetails.push(failTitle + "\n\nReason:\n" + failReason);
+      }
+    }
+
     if (importedCount > 0) {
       SpreadsheetApp.getUi().alert(
         "✅ CMS Draft Import Succeeded!\n\n" +
         "Imported to CMS: " + importedCount + " (Status set to: 'Imported to CMS')\n" +
         (skippedCount > 0 ? "Duplicates Skipped: " + skippedCount + " (Remain: 'Approved')\n" : "") +
-        (failedCount > 0 ? "Failed: " + failedCount + " (Remain: 'Approved')\n" : "") + "\n" +
+        (failedCount > 0 ? "Failed: " + failedCount + " (Remain: 'Approved')\n\nFailed Items:\n" + failedDetails.join("\n\n") + "\n\n" : "\n") +
         "Verified Draft Records:\n" + importedSummary.join("\n") + "\n\n" +
         "The reviews are now securely stored as DRAFTS in the CMS.\n" +
         "Open the CMS Editorial Studio (/admin/reviews) to review and publish to the live website."
       );
+    } else if (failedCount > 0 && failedDetails.length > 0) {
+      SpreadsheetApp.getUi().alert(
+        "❌ CMS Import Failed\n\n" +
+        "The following review could not be persisted:\n\n" +
+        failedDetails.join("\n\n---\n\n") +
+        "\n\nThe Sheet row remains in Approved status."
+      );
+    } else if (skippedCount > 0) {
+      SpreadsheetApp.getUi().alert(
+        "⚠️ No Reviews Were Imported:\n\n" +
+        "• " + skippedCount + " duplicate review(s) already exist in CMS.\n\n" +
+        "All submitted rows remain safely in 'Approved' status."
+      );
     } else {
       SpreadsheetApp.getUi().alert(
         "⚠️ No Reviews Were Imported:\n\n" +
-        (skippedCount > 0 ? "• " + skippedCount + " duplicate review(s) already exist in CMS.\n" : "") +
-        (failedCount > 0 ? "• " + failedCount + " review(s) failed persistence validation.\n" : "") +
-        "\nAll submitted rows remain safely in 'Approved' status."
+        "The server did not persist any new CMS drafts.\n\n" +
+        "All submitted rows remain safely in 'Approved' status."
       );
     }
   } catch (err) {

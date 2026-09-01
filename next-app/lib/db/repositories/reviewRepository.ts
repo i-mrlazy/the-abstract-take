@@ -7,6 +7,11 @@ import { readJsonFile, writeJsonFile } from '../fsUtils';
 const REVIEWS_FILE = 'reviews.json';
 
 export function mapDbToReview(row: any): Review {
+  const metaTitle = row.seo_meta_title || `${row.title} (${row.release_year || ''}) Review — The Abstract Take`;
+  const metaDesc = row.seo_meta_description || row.my_take || '';
+  const metaKeywords = Array.isArray(row.seo_keywords) ? row.seo_keywords : [row.title, row.type, 'The Abstract Take'];
+  const metaOgImage = row.seo_og_image || row.banner_url || row.poster_url;
+
   return {
     id: row.id,
     slug: row.slug,
@@ -41,7 +46,7 @@ export function mapDbToReview(row: any): Review {
     author: {
       name: row.author_name || 'The Abstract Take',
       title: row.author_title || 'Chief Cinema Critic',
-      avatarUrl: row.author_avatar || '',
+      avatarUrl: row.author_avatar_url || row.author_avatar || '',
     },
     category: row.category,
     tags: Array.isArray(row.tags) ? row.tags : [],
@@ -53,14 +58,26 @@ export function mapDbToReview(row: any): Review {
     isLatestTake: Boolean(row.is_latest_take),
     isEditorPick: Boolean(row.is_editor_pick),
     isHiddenGem: Boolean(row.is_hidden_gem),
-    artwork: row.artwork || undefined,
+    artwork: row.artwork || (row.poster_url ? {
+      poster: row.poster_url,
+      backdrop: row.banner_url || row.poster_url,
+      sourceType: 'official',
+      sourceName: 'The Abstract Take Key Art',
+      verified: true,
+    } : undefined),
     recommendationMetadata: row.recommendation_metadata || row.recommendationMetadata || undefined,
     generationMetadata: row.generation_metadata || row.generationMetadata || undefined,
     synopsis: row.synopsis || undefined,
     trailerUrl: row.trailer_url || undefined,
     language: row.language || undefined,
     country: row.country || undefined,
-    seo: row.seo_metadata || undefined,
+    seo: row.seo || {
+      metaTitle,
+      metaDescription: metaDesc,
+      keywords: metaKeywords,
+      slug: row.slug,
+      ogImage: metaOgImage,
+    },
     source: row.source || 'manual',
     automationRowId: row.automation_row_id || undefined,
     createdAt: row.created_at || undefined,
@@ -102,7 +119,7 @@ export function mapReviewToDb(r: Review): any {
     updated_date: r.updatedDate || new Date().toISOString().split('T')[0],
     author_name: r.author?.name || 'The Abstract Take',
     author_title: r.author?.title || 'Chief Cinema Critic',
-    author_avatar: r.author?.avatarUrl || '',
+    author_avatar_url: r.author?.avatarUrl || '',
     category: r.category || 'Movies',
     tags: r.tags || [],
     views_count: r.viewsCount || 0,
@@ -113,14 +130,14 @@ export function mapReviewToDb(r: Review): any {
     is_latest_take: Boolean(r.isLatestTake),
     is_editor_pick: Boolean(r.isEditorPick),
     is_hidden_gem: Boolean(r.isHiddenGem),
-    artwork: r.artwork || null,
-    recommendation_metadata: r.recommendationMetadata || null,
-    generation_metadata: r.generationMetadata || null,
     synopsis: r.synopsis || null,
     trailer_url: r.trailerUrl || null,
     language: r.language || null,
     country: r.country || null,
-    seo_metadata: r.seo || null,
+    seo_meta_title: r.seo?.metaTitle || `${r.title} (${r.releaseYear}) Review — The Abstract Take`,
+    seo_meta_description: r.seo?.metaDescription || r.myTake || '',
+    seo_keywords: r.seo?.keywords || [r.title, r.type, 'The Abstract Take'],
+    seo_og_image: r.seo?.ogImage || r.bannerUrl || r.posterUrl,
     source: r.source || 'manual',
     automation_row_id: r.automationRowId || null,
     updated_at: new Date().toISOString(),
